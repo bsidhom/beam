@@ -964,6 +964,9 @@ public class DoFnOperator<InputT, OutputT>
         Map<TupleTag<?>, OutputTag<WindowedValue<?>>> tagsToOutputTags,
         Map<TupleTag<?>, Coder<WindowedValue<?>>> tagsToCoders,
         Map<TupleTag<?>, Integer> tagsToIds) {
+      if (tagsToOutputTags.size() > 1) {
+        System.out.printf("OUTPUT MANAGER\nMAIN: %s\nT2T: %s\nT2C: %s\nT2I: %s\n\n", mainTag, tagsToOutputTags, tagsToCoders, tagsToIds);
+      }
       this.mainTag = mainTag;
       this.tagsToOutputTags = tagsToOutputTags;
       this.tagsToCoders = tagsToCoders;
