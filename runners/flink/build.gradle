@@ -75,37 +75,51 @@ dependencies {
   shadowTest "org.apache.flink:flink-runtime_2.11:$flink_version:tests"
   shadowTest "org.apache.flink:flink-streaming-java_2.11:$flink_version:tests"
   shadowTest "org.apache.flink:flink-test-utils_2.11:$flink_version"
-  validatesRunnerBatch project(path: ":beam-sdks-parent:beam-sdks-java-parent:beam-sdks-java-core", configuration: "shadowTest")
+  validatesRunnerBatch project(path: ":sdks:java:core", configuration: "shadowTest")
   validatesRunnerBatch project(path: project.path, configuration: "shadow")
 }
 
-def outputDirectory = "$buildDir/validatesRunner/"
-
 task validatesRunnerCopy(type: Copy) {
-  println "UNZIPPING:"
-  from zipTree({
-    findProject(":beam-sdks-parent:beam-sdks-java-parent:beam-sdks-java-core").getConfigurations().shadowTest.getArtifacts().getFiles().getSingleFile()
-  })
-  into outputDirectory
+  // TODO: Get this project reference lazily so evaluation does not depend on beam-sdks-java-core.
+  def testArtifacts = findProject(":sdks:java:core").getConfigurations().shadowTest.getArtifacts()
+  for (PublishArtifact artifact : testArtifacts) {
+    from zipTree(artifact.getFile())
+    into "$buildDir/validatesRunner/${artifact.getFile().getName()}"
+  }
 }
 
-task validatesRunnerBatch(type: Test) {
-  dependsOn validatesRunnerCopy
-  println "ZIP OUTPUT: " + outputDirectory
-  systemProperty "beamTestPipelineOptions", '["--runner=TestFlinkRunner", "--streaming=false"]'
-  classpath = configurations.validatesRunnerBatch
-  //testClassesDirs = findProject(":beam-sdks-parent:beam-sdks-java-parent:beam-sdks-java-core").sourceSets.test.output
-  testClassesDirs = files(outputDirectory)
-  println "TEST DIR: " + getTestClassesDirs().getFiles()
-  maxParallelForks 24
-  useJUnit {
-    includeCategories "org.apache.beam.sdk.testing.ValidatesRunner"
-    excludeCategories "org.apache.beam.sdk.testing.FlattenWithHeterogeneousCoders"
-    excludeCategories "org.apache.beam.sdk.testing.LargeKeys\$Above100MB"
-    excludeCategories "org.apache.beam.sdk.testing.UsesSplittableParDo"
-    excludeCategories "org.apache.beam.sdk.testing.UsesCommittedMetrics"
-    excludeCategories "org.apache.beam.sdk.testing.UsesTestStream"
+class ValidatesRunnerConfig {
+  String name
+  boolean streaming
+}
+
+def createValidatesRunnerTask(Map m) {
+  def config = m as ValidatesRunnerConfig
+  tasks.create(name: config.name, type: Test) {
+    def pipelineOptions = "[\"--runner=TestFlinkRunner\", \"--streaming=${config.streaming}\"]"
+    println "PIPELINE OPTIONS: $config.name, $pipelineOptions"
+    dependsOn validatesRunnerCopy
+    systemProperty "beamTestPipelineOptions", pipelineOptions
+    classpath = configurations.validatesRunnerBatch
+    testClassesDirs = files("$buildDir/validatesRunner")
+    maxParallelForks 4
+    useJUnit {
+      includeCategories 'org.apache.beam.sdk.testing.ValidatesRunner'
+      excludeCategories 'org.apache.beam.sdk.testing.FlattenWithHeterogeneousCoders'
+      excludeCategories 'org.apache.beam.sdk.testing.LargeKeys$Above100MB'
+      excludeCategories 'org.apache.beam.sdk.testing.UsesSplittableParDo'
+      excludeCategories 'org.apache.beam.sdk.testing.UsesCommittedMetrics'
+      excludeCategories 'org.apache.beam.sdk.testing.UsesTestStream'
+    }
   }
+}
+
+createValidatesRunnerTask(name: "validatesRunnerBatch", streaming: false)
+createValidatesRunnerTask(name: "validatesRunnerStreaming", streaming: true)
+
+task validatesRunner {
+  dependsOn validatesRunnerBatch
+  dependsOn validatesRunnerStreaming
 }
 
 task packageTests(type: Jar) {
