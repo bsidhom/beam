@@ -30,6 +30,7 @@ description = "Apache Beam :: Runners :: Flink"
  */
 evaluationDependsOn(":model:fn-execution")
 evaluationDependsOn(":runners:core-java")
+evaluationDependsOn(":sdks:java:core")
 
 test {
   systemProperty "log4j.configuration", "log4j-test.properties"
@@ -37,6 +38,10 @@ test {
   if (System.getProperty("beamSurefireArgline")) {
     jvmArgs System.getProperty("beamSurefireArgline")
   }
+}
+
+configurations {
+  validatesRunnerBatch
 }
 
 def flink_version = "1.4.0"
@@ -57,19 +62,50 @@ dependencies {
   shadow "org.apache.flink:flink-java:$flink_version"
   shadow "org.apache.flink:flink-runtime_2.11:$flink_version"
   shadow "org.apache.flink:flink-streaming-java_2.11:$flink_version"
-  testCompile project(path: ":sdks:java:core", configuration: "shadowTest")
-  testCompile project(":model:fn-execution").sourceSets.test.output
-  testCompile project(":runners:core-java").sourceSets.test.output
-  testCompile library.java.commons_lang3
-  testCompile library.java.hamcrest_core
-  testCompile library.java.junit
-  testCompile library.java.mockito_core
-  testCompile library.java.google_api_services_bigquery
-  testCompile library.java.jackson_dataformat_yaml
-  testCompile "org.apache.flink:flink-core:$flink_version:tests"
-  testCompile "org.apache.flink:flink-runtime_2.11:$flink_version:tests"
-  testCompile "org.apache.flink:flink-streaming-java_2.11:$flink_version:tests"
-  testCompile "org.apache.flink:flink-test-utils_2.11:$flink_version"
+  shadowTest project(path: ":sdks:java:core", configuration: "shadowTest")
+  shadowTest project(":model:fn-execution").sourceSets.test.output
+  shadowTest project(":runners:core-java").sourceSets.test.output
+  shadowTest library.java.commons_lang3
+  shadowTest library.java.hamcrest_core
+  shadowTest library.java.junit
+  shadowTest library.java.mockito_core
+  shadowTest library.java.google_api_services_bigquery
+  shadowTest library.java.jackson_dataformat_yaml
+  shadowTest "org.apache.flink:flink-core:$flink_version:tests"
+  shadowTest "org.apache.flink:flink-runtime_2.11:$flink_version:tests"
+  shadowTest "org.apache.flink:flink-streaming-java_2.11:$flink_version:tests"
+  shadowTest "org.apache.flink:flink-test-utils_2.11:$flink_version"
+  validatesRunnerBatch project(path: ":beam-sdks-parent:beam-sdks-java-parent:beam-sdks-java-core", configuration: "shadowTest")
+  validatesRunnerBatch project(path: project.path, configuration: "shadow")
+}
+
+def outputDirectory = "$buildDir/validatesRunner/"
+
+task validatesRunnerCopy(type: Copy) {
+  println "UNZIPPING:"
+  from zipTree({
+    findProject(":beam-sdks-parent:beam-sdks-java-parent:beam-sdks-java-core").getConfigurations().shadowTest.getArtifacts().getFiles().getSingleFile()
+  })
+  into outputDirectory
+}
+
+task validatesRunnerBatch(type: Test) {
+  dependsOn validatesRunnerCopy
+  println "ZIP OUTPUT: " + outputDirectory
+  systemProperty "beamTestPipelineOptions", '["--runner=TestFlinkRunner", "--streaming=false"]'
+  classpath = configurations.validatesRunnerBatch
+  //testClassesDirs = findProject(":beam-sdks-parent:beam-sdks-java-parent:beam-sdks-java-core").sourceSets.test.output
+  testClassesDirs = files(outputDirectory)
+  println "TEST DIR: " + getTestClassesDirs().getFiles()
+  maxParallelForks 24
+  useJUnit {
+    includeCategories "org.apache.beam.sdk.testing.ValidatesRunner"
+    excludeCategories "org.apache.beam.sdk.testing.FlattenWithHeterogeneousCoders"
+    excludeCategories "org.apache.beam.sdk.testing.LargeKeys\$Above100MB"
+    excludeCategories "org.apache.beam.sdk.testing.UsesSplittableParDo"
+    excludeCategories "org.apache.beam.sdk.testing.UsesCommittedMetrics"
+    excludeCategories "org.apache.beam.sdk.testing.UsesTestStream"
+  }
 }
 
 task packageTests(type: Jar) {
