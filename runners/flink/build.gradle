@@ -120,3 +120,41 @@ task validatesRunner {
 
 // Generates :runners:flink:runQuickstartJavaFlinkLocal
 createJavaQuickstartValidationTask(name: 'FlinkLocal')
+
+println("FLINK ARTIFACTS: ${configurations.archives.allArtifacts}")
+
+uploadArchives {
+  repositories {
+    mavenDeployer {
+      pom.artifactId = "beam-runners-flink"
+    }
+  }
+}
+
+install {
+  repositories.mavenInstaller {
+    //pom.artifactId = "beam-runners-flink"
+    addFilter("flink") { artifact, file ->
+      //println("ARTIFACT: $artifact, FILE: $file")
+      //println(artifact.dump())
+      //println("ARTIFACT PROPS: ${artifact.properties}")
+      def result = artifact.name == "flink" && artifact.attributes.classifier == "shaded"
+      println("Artifact: $artifact, classifier: ${artifact.attributes.classifier}, name: ${artifact.name}, result: $result")
+      result
+    }
+    //println("FLINK PROPS: ${pom("flink").properties}")
+    pom("flink").artifactId = "beam-runners-flink"
+    pom("flink").groupId = "org.apache.beam"
+    //pom("flink").name = "artifact-name"
+    //pom("flink").attributes.classifier = null
+    //pom("flink").classifier = null
+    //println("FLINK: ${pom("flink").model.dump()}")
+    //println("MODEL:")
+    //pom("flink").model.properties.each { println(it) }
+    println("FLINK PROPS:")
+    pom("flink").properties.effectivePom.properties.effectivePom.properties.each { println(it) }
+    //println(pom("flink").dump())
+    //println("POM")
+    //pom("flink").effectivePom.properties.each { println(it) }
+  }
+}

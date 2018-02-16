@@ -189,6 +189,22 @@ ext.applyJavaNature = {
     options.compilerArgs += ["-Xlint:all","-Xlint:-options","-Xlint:-cast","-Xlint:-deprecation","-Xlint:-processing","-Xlint:-rawtypes","-Xlint:-serial","-Xlint:-try","-Xlint:-unchecked","-Xlint:-varargs","-parameters"]
   }
 
+  // NOTE: This only affects the default artifact. Multi-artifact projects
+  // (e.g., pom("flink") will need to manually override the default groupId.
+  uploadArchives {
+    repositories {
+      mavenDeployer {
+        pom.groupId = "org.apache.beam"
+      }
+    }
+  }
+
+  install {
+    repositories.mavenInstaller {
+      pom.groupId = "org.apache.beam"
+    }
+  }
+
   // Configure the default test tasks set of tests executed
   // to match the equivalent set that is executed by the maven-surefire-plugin.
   // See http://maven.apache.org/components/surefire/maven-surefire-plugin/test-mojo.html
