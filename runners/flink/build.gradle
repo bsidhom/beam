@@ -120,3 +120,15 @@ task validatesRunner {
 
 // Generates :runners:flink:runQuickstartJavaFlinkLocal
 createJavaQuickstartValidationTask(name: 'FlinkLocal')
+
+publishing {
+  publications {
+    mavenJava(MavenPublication) {
+      artifact(shadowJar) {
+        groupId "org.apache.beam"
+        artifactId "beam-runners-flink"
+        classifier null
+      }
+    }
+  }
+}

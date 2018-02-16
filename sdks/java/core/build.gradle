@@ -115,3 +115,15 @@ task shadowTestJar(type: com.github.jengelman.gradle.plugins.shadow.tasks.Shadow
 artifacts {
   shadowTest shadowTestJar
 }
+
+publishing {
+  publications {
+	mavenJava(MavenPublication) {
+	  artifact(shadowJar) {
+        groupId "org.apache.beam"
+        artifactId "beam-sdks-java-core"
+		classifier null
+	  }
+	}
+  }
+}

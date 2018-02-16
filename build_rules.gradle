@@ -177,7 +177,7 @@ ext.applyJavaNature = {
   println "applyJavaNature with " + (it ? "$it" : "default configuration") + " for project $project.name"
   // Use the implicit it parameter of the closure to handle zero argument or one argument map calls.
   JavaNatureConfiguration configuration = it ? it as JavaNatureConfiguration : new JavaNatureConfiguration()
-  apply plugin: "maven"
+  apply plugin: "maven-publish"
   apply plugin: "java"
 
   // Configure the Java compiler source language and target compatibility levels. Also ensure that
