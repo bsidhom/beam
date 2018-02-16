@@ -18,9 +18,8 @@
 
 package org.apache.beam.runners.fnexecution.artifact;
 
-import org.apache.beam.model.jobmanagement.v1.ArtifactApi;
-
 import java.util.stream.Stream;
+import org.apache.beam.model.jobmanagement.v1.ArtifactApi;
 
 /**
  * Makes artifacts available to an ArtifactRetrievalService by

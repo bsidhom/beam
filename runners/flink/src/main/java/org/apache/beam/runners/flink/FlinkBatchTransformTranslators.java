@@ -20,6 +20,9 @@ package org.apache.beam.runners.flink;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
+import com.google.auto.service.AutoService;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import java.io.IOException;
@@ -33,12 +36,15 @@ import javax.annotation.Nullable;
 import org.apache.beam.runners.core.construction.CombineTranslation;
 import org.apache.beam.runners.core.construction.CreatePCollectionViewTranslation;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
+import org.apache.beam.runners.core.construction.PTransformTranslation.TransformPayloadTranslator;
 import org.apache.beam.runners.core.construction.ParDoTranslation;
 import org.apache.beam.runners.core.construction.ReadTranslation;
+import org.apache.beam.runners.core.construction.TransformPayloadTranslatorRegistrar;
 import org.apache.beam.runners.flink.translation.functions.FlinkAssignWindows;
 import org.apache.beam.runners.flink.translation.functions.FlinkDoFnFunction;
 import org.apache.beam.runners.flink.translation.functions.FlinkMergingNonShuffleReduceFunction;
 import org.apache.beam.runners.flink.translation.functions.FlinkMultiOutputPruningFunction;
+import org.apache.beam.runners.flink.translation.functions.FlinkParDoFunction;
 import org.apache.beam.runners.flink.translation.functions.FlinkPartialReduceFunction;
 import org.apache.beam.runners.flink.translation.functions.FlinkReduceFunction;
 import org.apache.beam.runners.flink.translation.functions.FlinkStatefulDoFnFunction;
@@ -495,136 +501,161 @@ class FlinkBatchTransformTranslators {
     public void translateNode(
         PTransform<PCollection<InputT>, PCollectionTuple> transform,
         FlinkBatchTranslationContext context) {
-      DoFn<InputT, OutputT> doFn;
-      try {
-        doFn = (DoFn<InputT, OutputT>) ParDoTranslation.getDoFn(context.getCurrentTransform());
-      } catch (IOException e) {
-        throw new RuntimeException(e);
-      }
-      rejectSplittable(doFn);
-      DataSet<WindowedValue<InputT>> inputDataSet =
-          context.getInputDataSet(context.getInput(transform));
-
-      Map<TupleTag<?>, PValue> outputs = context.getOutputs(transform);
-
-      TupleTag<?> mainOutputTag;
-      try {
-        mainOutputTag = ParDoTranslation.getMainOutputTag(context.getCurrentTransform());
-      } catch (IOException e) {
-        throw new RuntimeException(e);
-      }
-      Map<TupleTag<?>, Integer> outputMap = Maps.newHashMap();
-      // put the main output at index 0, FlinkMultiOutputDoFnFunction  expects this
-      outputMap.put(mainOutputTag, 0);
-      int count = 1;
-      for (TupleTag<?> tag : outputs.keySet()) {
-        if (!outputMap.containsKey(tag)) {
-          outputMap.put(tag, count++);
-        }
-      }
-
-      // Union coder elements must match the order of the output tags.
-      Map<Integer, TupleTag<?>> indexMap = Maps.newTreeMap();
-      for (Map.Entry<TupleTag<?>, Integer> entry : outputMap.entrySet()) {
-        indexMap.put(entry.getValue(), entry.getKey());
-      }
-
-      // assume that the windowing strategy is the same for all outputs
-      WindowingStrategy<?, ?> windowingStrategy = null;
-
-      // collect all output Coders and create a UnionCoder for our tagged outputs
-      List<Coder<?>> outputCoders = Lists.newArrayList();
-      for (TupleTag<?> tag : indexMap.values()) {
-        PValue taggedValue = outputs.get(tag);
-        checkState(
-            taggedValue instanceof PCollection,
-            "Within ParDo, got a non-PCollection output %s of type %s",
-            taggedValue,
-            taggedValue.getClass().getSimpleName());
-        PCollection<?> coll = (PCollection<?>) taggedValue;
-        outputCoders.add(coll.getCoder());
-        windowingStrategy = coll.getWindowingStrategy();
-      }
-
-      if (windowingStrategy == null) {
-        throw new IllegalStateException("No outputs defined.");
-      }
-
-      UnionCoder unionCoder = UnionCoder.of(outputCoders);
-
-      TypeInformation<WindowedValue<RawUnionValue>> typeInformation =
-          new CoderTypeInformation<>(
-              WindowedValue.getFullCoder(
-                  unionCoder,
-                  windowingStrategy.getWindowFn().windowCoder()));
-
-      List<PCollectionView<?>> sideInputs;
-      try {
-        sideInputs = ParDoTranslation.getSideInputs(context.getCurrentTransform());
-      } catch (IOException e) {
-        throw new RuntimeException(e);
-      }
-
-      // construct a map from side input to WindowingStrategy so that
-      // the DoFn runner can map main-input windows to side input windows
-      Map<PCollectionView<?>, WindowingStrategy<?, ?>> sideInputStrategies = new HashMap<>();
-      for (PCollectionView<?> sideInput: sideInputs) {
-        sideInputStrategies.put(sideInput, sideInput.getWindowingStrategyInternal());
-      }
-
-      SingleInputUdfOperator<WindowedValue<InputT>, WindowedValue<RawUnionValue>, ?> outputDataSet;
-      boolean usesStateOrTimers;
-      try {
-        usesStateOrTimers = ParDoTranslation.usesStateOrTimers(context.getCurrentTransform());
-      } catch (IOException e) {
-        throw new RuntimeException(e);
-      }
-      if (usesStateOrTimers) {
-
-        // Based on the fact that the signature is stateful, DoFnSignatures ensures
-        // that it is also keyed
-        KvCoder<?, InputT> inputCoder =
-            (KvCoder<?, InputT>) context.getInput(transform).getCoder();
-
-        FlinkStatefulDoFnFunction<?, ?, OutputT> doFnWrapper = new FlinkStatefulDoFnFunction<>(
-            (DoFn) doFn, context.getCurrentTransform().getFullName(),
-            windowingStrategy, sideInputStrategies, context.getPipelineOptions(),
-            outputMap, (TupleTag<OutputT>) mainOutputTag
-        );
-
-        Grouping<WindowedValue<InputT>> grouping =
-            inputDataSet.groupBy(new KvKeySelector(inputCoder.getKeyCoder()));
-
-        outputDataSet =
-            new GroupReduceOperator(grouping, typeInformation, doFnWrapper, transform.getName());
-
+      if (transform.getAdditionalInputs().isEmpty()
+          && context.getCurrentTransform().getOutputs().size() == 1) {
+        System.out.println("Using portability");
+        //RunnerApi.Pipeline p =
+        // PipelineTranslation.toProto(context.getCurrentTransform().getPipeline());
+        FlinkParDoFunction<InputT, OutputT> fusedStageFunction = new FlinkParDoFunction<>();
+        PCollection<OutputT> outputCollection = (PCollection<OutputT>)
+            Iterables.getOnlyElement(context.getOutputs(transform).values());
+        WindowingStrategy<?, ?> windowingStrategy = outputCollection.getWindowingStrategy();
+        TypeInformation<WindowedValue<OutputT>> typeInformation =
+            new CoderTypeInformation<>(
+                WindowedValue.getFullCoder(
+                    outputCollection.getCoder(),
+                    windowingStrategy.getWindowFn().windowCoder()));
+        SingleInputUdfOperator<
+            WindowedValue<InputT>, WindowedValue<OutputT>, ?> outputDataset =
+                new MapPartitionOperator<>(context.getInputDataSet(context.getInput(transform)),
+                    typeInformation,
+                    fusedStageFunction,
+                    transform.getName() + "PORTABLILITY SHIM");
+        context.setOutputDataSet(Iterables.getOnlyElement(context.getOutputs(transform).values()),
+            outputDataset);
       } else {
-        FlinkDoFnFunction<InputT, RawUnionValue> doFnWrapper =
-            new FlinkDoFnFunction(
-                doFn,
-                context.getCurrentTransform().getFullName(),
-                windowingStrategy,
-                sideInputStrategies,
-                context.getPipelineOptions(),
-                outputMap,
-                mainOutputTag);
+        DoFn<InputT, OutputT> doFn;
+        try {
+          doFn = (DoFn<InputT, OutputT>) ParDoTranslation.getDoFn(context.getCurrentTransform());
+        } catch (IOException e) {
+          throw new RuntimeException(e);
+        }
+        rejectSplittable(doFn);
+        DataSet<WindowedValue<InputT>> inputDataSet =
+            context.getInputDataSet(context.getInput(transform));
 
-        outputDataSet = new MapPartitionOperator<>(
-            inputDataSet, typeInformation,
-            doFnWrapper, transform.getName());
+        Map<TupleTag<?>, PValue> outputs = context.getOutputs(transform);
+
+        TupleTag<?> mainOutputTag;
+        try {
+          mainOutputTag = ParDoTranslation.getMainOutputTag(context.getCurrentTransform());
+        } catch (IOException e) {
+          throw new RuntimeException(e);
+        }
+        Map<TupleTag<?>, Integer> outputMap = Maps.newHashMap();
+        // put the main output at index 0, FlinkMultiOutputDoFnFunction  expects this
+        outputMap.put(mainOutputTag, 0);
+        int count = 1;
+        for (TupleTag<?> tag : outputs.keySet()) {
+          if (!outputMap.containsKey(tag)) {
+            outputMap.put(tag, count++);
+          }
+        }
+
+        // Union coder elements must match the order of the output tags.
+        Map<Integer, TupleTag<?>> indexMap = Maps.newTreeMap();
+        for (Map.Entry<TupleTag<?>, Integer> entry : outputMap.entrySet()) {
+          indexMap.put(entry.getValue(), entry.getKey());
+        }
+
+        // assume that the windowing strategy is the same for all outputs
+        WindowingStrategy<?, ?> windowingStrategy = null;
+
+        // collect all output Coders and create a UnionCoder for our tagged outputs
+        List<Coder<?>> outputCoders = Lists.newArrayList();
+        for (TupleTag<?> tag : indexMap.values()) {
+          PValue taggedValue = outputs.get(tag);
+          checkState(
+              taggedValue instanceof PCollection,
+              "Within ParDo, got a non-PCollection output %s of type %s",
+              taggedValue,
+              taggedValue.getClass().getSimpleName());
+          PCollection<?> coll = (PCollection<?>) taggedValue;
+          outputCoders.add(coll.getCoder());
+          windowingStrategy = coll.getWindowingStrategy();
+        }
+
+        if (windowingStrategy == null) {
+          throw new IllegalStateException("No outputs defined.");
+        }
+
+        UnionCoder unionCoder = UnionCoder.of(outputCoders);
+
+        TypeInformation<WindowedValue<RawUnionValue>> typeInformation =
+            new CoderTypeInformation<>(
+                WindowedValue.getFullCoder(
+                    unionCoder,
+                    windowingStrategy.getWindowFn().windowCoder()));
+
+        List<PCollectionView<?>> sideInputs;
+        try {
+          sideInputs = ParDoTranslation.getSideInputs(context.getCurrentTransform());
+        } catch (IOException e) {
+          throw new RuntimeException(e);
+        }
+
+        // construct a map from side input to WindowingStrategy so that
+        // the DoFn runner can map main-input windows to side input windows
+        Map<PCollectionView<?>, WindowingStrategy<?, ?>> sideInputStrategies = new HashMap<>();
+        for (PCollectionView<?> sideInput: sideInputs) {
+          sideInputStrategies.put(sideInput, sideInput.getWindowingStrategyInternal());
+        }
+
+        SingleInputUdfOperator<WindowedValue<InputT>, WindowedValue<RawUnionValue>, ?>
+            outputDataSet;
+        boolean usesStateOrTimers;
+        try {
+          usesStateOrTimers = ParDoTranslation.usesStateOrTimers(context.getCurrentTransform());
+        } catch (IOException e) {
+          throw new RuntimeException(e);
+        }
+        if (usesStateOrTimers) {
+
+          // Based on the fact that the signature is stateful, DoFnSignatures ensures
+          // that it is also keyed
+          KvCoder<?, InputT> inputCoder =
+              (KvCoder<?, InputT>) context.getInput(transform).getCoder();
+
+          FlinkStatefulDoFnFunction<?, ?, OutputT> doFnWrapper = new FlinkStatefulDoFnFunction<>(
+              (DoFn) doFn, context.getCurrentTransform().getFullName(),
+              windowingStrategy, sideInputStrategies, context.getPipelineOptions(),
+              outputMap, (TupleTag<OutputT>) mainOutputTag
+          );
+
+          Grouping<WindowedValue<InputT>> grouping =
+              inputDataSet.groupBy(new KvKeySelector(inputCoder.getKeyCoder()));
+
+          outputDataSet =
+              new GroupReduceOperator(grouping, typeInformation, doFnWrapper, transform.getName());
+
+        } else {
+          FlinkDoFnFunction<InputT, RawUnionValue> doFnWrapper =
+              new FlinkDoFnFunction(
+                  doFn,
+                  context.getCurrentTransform().getFullName(),
+                  windowingStrategy,
+                  sideInputStrategies,
+                  context.getPipelineOptions(),
+                  outputMap,
+                  mainOutputTag);
+
+          outputDataSet = new MapPartitionOperator<>(
+              inputDataSet, typeInformation,
+              doFnWrapper, transform.getName());
+
+        }
+
+        transformSideInputs(sideInputs, outputDataSet, context);
+
+        for (Entry<TupleTag<?>, PValue> output : outputs.entrySet()) {
+          pruneOutput(
+              outputDataSet,
+              context,
+              outputMap.get(output.getKey()),
+              (PCollection<?>) output.getValue());
+        }
 
       }
-
-      transformSideInputs(sideInputs, outputDataSet, context);
-
-      for (Entry<TupleTag<?>, PValue> output : outputs.entrySet()) {
-        pruneOutput(
-            outputDataSet,
-            context,
-            outputMap.get(output.getKey()),
-            (PCollection) output.getValue());
-      }
-
     }
 
     private <T> void pruneOutput(
@@ -731,6 +762,35 @@ class FlinkBatchTransformTranslators {
       }
       context.setSideInputDataSet(input, inputDataSet);
     }
+  }
+
+  /** Registers specialized Flink batch translators. */
+  @AutoService(TransformPayloadTranslatorRegistrar.class)
+  public static class FlinkTransformsRegistrar implements TransformPayloadTranslatorRegistrar {
+
+    @Override
+    public Map<? extends Class<? extends PTransform>, ? extends TransformPayloadTranslator> getTransformPayloadTranslators() {
+      return ImmutableMap.<Class<? extends PTransform>, TransformPayloadTranslator>builder()
+          .build();
+    }
+
+    @Override
+    public Map<String, ? extends TransformPayloadTranslator> getTransformRehydrators() {
+      return Collections.emptyMap();
+    }
+  }
+
+  /** Payload translator to vend urn. */
+  private static class SingleInputOutputParDoPayloadTranslator
+      extends PTransformTranslation.TransformPayloadTranslator.NotSerializable<PTransform<?, ?>> {
+
+    private SingleInputOutputParDoPayloadTranslator() {}
+
+    @Override
+    public String getUrn(PTransform transform) {
+      return SingleInputOutputParDo.SINGLE_INPUT_OUTPUT_PARDO_URN;
+    }
+
   }
 
   private static void transformSideInputs(
