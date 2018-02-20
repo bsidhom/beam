@@ -51,7 +51,7 @@ public class FlinkTransformOverrides {
           .build();
     } else {
       return ImmutableList.of(PTransformOverride.of(new SingleInputOutputParDoMatcher(),
-          null));
+          new SingleInputOutputParDo.Factory()));
     }
   }
 
