@@ -22,6 +22,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import java.io.IOException;
 import java.util.List;
 import org.apache.beam.runners.core.construction.PipelineTranslation;
+import org.apache.beam.runners.core.construction.graph.GreedyPipelineFuser;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.java.CollectionEnvironment;
@@ -91,6 +92,11 @@ class FlinkPipelineExecutionEnvironment {
       pipeline = PipelineTranslation.fromProto(PipelineTranslation.toProto(pipeline));
     } catch (IOException e) {
       throw new RuntimeException(e);
+    }
+
+    if (options.usePortableRunner()) {
+      // TODO: Rehydrate fused pipeline proto and use this below.
+      GreedyPipelineFuser.fuse(PipelineTranslation.toProto(pipeline));
     }
 
     PipelineTranslationOptimizer optimizer =

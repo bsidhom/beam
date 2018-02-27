@@ -74,6 +74,8 @@ import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionList;
 import org.apache.beam.sdk.values.PCollectionTuple;
 import org.apache.beam.sdk.values.PCollectionView;
+import org.apache.beam.sdk.values.PInput;
+import org.apache.beam.sdk.values.POutput;
 import org.apache.beam.sdk.values.PValue;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.WindowingStrategy;
@@ -670,6 +672,16 @@ class FlinkBatchTransformTranslators {
               collection.getName());
 
       context.setOutputDataSet(collection, pruningOperator);
+    }
+  }
+
+  private static class ExecutableStageTranslatorBatch<InputT extends PInput,
+      OutputT extends POutput> implements FlinkBatchPipelineTranslator.BatchTransformTranslator<
+      PTransform<InputT, OutputT>> {
+
+    @Override
+    public void translateNode(PTransform<InputT, OutputT> transform,
+        FlinkBatchTranslationContext context) {
     }
   }
 

@@ -137,6 +137,11 @@ public interface FlinkPipelineOptions
   Long getMaxBundleTimeMills();
   void setMaxBundleTimeMills(Long time);
 
+  @Description("Whether to use the portable runner layer")
+  @Default.Boolean(false)
+  Boolean usePortableRunner();
+  void setUsePortableRunner(Boolean usePortableRunner);
+
   /**
    * Whether to shutdown sources when their watermark reaches {@code +Inf}. For production use
    * cases you want this to be disabled because Flink will currently (versions {@literal <=} 1.5)
