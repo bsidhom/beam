@@ -19,8 +19,11 @@ package org.apache.beam.runners.flink;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
+import com.google.common.collect.ImmutableList;
 import java.io.IOException;
 import java.util.List;
+import org.apache.beam.model.pipeline.v1.RunnerApi;
+import org.apache.beam.runners.core.construction.JavaReadViaImpulse;
 import org.apache.beam.runners.core.construction.PipelineTranslation;
 import org.apache.beam.runners.core.construction.graph.GreedyPipelineFuser;
 import org.apache.beam.sdk.Pipeline;
@@ -95,8 +98,19 @@ class FlinkPipelineExecutionEnvironment {
     }
 
     if (options.getUsePortableRunner()) {
-      // TODO: Rehydrate fused pipeline proto and use this below.
-      GreedyPipelineFuser.fuse(PipelineTranslation.toProto(pipeline));
+      // NOTE: Because the pipeline fuser only operates on and returns protos, we do another round
+      // trip here.
+      // Unfused pipeline proto.
+      pipeline.replaceAll(ImmutableList.of(JavaReadViaImpulse.boundedOverride()));
+      RunnerApi.Pipeline pipelineProto = PipelineTranslation.toProto(pipeline);
+      RunnerApi.Components components = pipelineProto.getComponents();
+      // Fused pipeline proto.
+      pipelineProto = GreedyPipelineFuser.fuse(pipelineProto).toPipeline(components);
+      try {
+        pipeline = PipelineTranslation.fromProto(pipelineProto);
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
     }
 
     PipelineTranslationOptimizer optimizer =
