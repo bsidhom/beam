@@ -20,6 +20,7 @@ package org.apache.beam.runners.flink;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import java.io.IOException;
@@ -40,6 +41,7 @@ import org.apache.beam.runners.core.construction.ReadTranslation;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
 import org.apache.beam.runners.flink.translation.functions.FlinkAssignWindows;
 import org.apache.beam.runners.flink.translation.functions.FlinkDoFnFunction;
+import org.apache.beam.runners.flink.translation.functions.FlinkExecutableStageFunction;
 import org.apache.beam.runners.flink.translation.functions.FlinkMergingNonShuffleReduceFunction;
 import org.apache.beam.runners.flink.translation.functions.FlinkMultiOutputPruningFunction;
 import org.apache.beam.runners.flink.translation.functions.FlinkPartialReduceFunction;
@@ -77,8 +79,6 @@ import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionList;
 import org.apache.beam.sdk.values.PCollectionTuple;
 import org.apache.beam.sdk.values.PCollectionView;
-import org.apache.beam.sdk.values.PInput;
-import org.apache.beam.sdk.values.POutput;
 import org.apache.beam.sdk.values.PValue;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.WindowingStrategy;
@@ -680,16 +680,38 @@ class FlinkBatchTransformTranslators {
     }
   }
 
-  private static class ExecutableStageTranslatorBatch<InputT extends PInput,
-      OutputT extends POutput> implements FlinkBatchPipelineTranslator.BatchTransformTranslator<
-      PTransform<InputT, OutputT>> {
+  private static class ExecutableStageTranslatorBatch<InputT,
+      OutputT> implements FlinkBatchPipelineTranslator.BatchTransformTranslator<
+      PTransform<PCollection<InputT>, PCollection<OutputT>>> {
 
     @Override
-    public void translateNode(PTransform<InputT, OutputT> transform,
+    public void translateNode(PTransform<PCollection<InputT>, PCollection<OutputT>> transform,
         FlinkBatchTranslationContext context) {
+      // TODO: Assert that all inputs and outputs are PCollections.
+      // TODO: Assert only a single output collection.
+      PCollection<OutputT> output = (PCollection<OutputT>)
+          Iterables.getOnlyElement(context.getCurrentTransform().getOutputs().values());
+      output.getCoder();
+      TypeInformation<WindowedValue<OutputT>> typeInformation =
+          new CoderTypeInformation<>(
+              WindowedValue.getFullCoder(
+                  output.getCoder(),
+                  output.getWindowingStrategy().getWindowFn().windowCoder()));
+      // TODO: How do we construct the proto here?
+      RunnerApi.PTransform transformProto = null;
       RunnerApi.Components components = PipelineTranslation.toProto(
           context.getCurrentTransform().getPipeline()).getComponents();
-      PTransformTranslation p = null;
+      FlinkExecutableStageFunction<InputT, OutputT> function =
+          new FlinkExecutableStageFunction<>(transformProto, components);
+      DataSet<WindowedValue<InputT>> inputDataSet =
+          context.getInputDataSet(context.getInput(transform));
+      DataSet<WindowedValue<OutputT>> outputDataset =
+          new MapPartitionOperator<>(
+              inputDataSet,
+              typeInformation,
+              function,
+              transform.getName());
+      context.setOutputDataSet(context.getOutput(transform), outputDataset);
     }
   }
 

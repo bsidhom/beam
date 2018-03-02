@@ -20,6 +20,8 @@ package org.apache.beam.runners.flink.translation.functions;
 import static org.apache.flink.util.Preconditions.checkState;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 import org.apache.beam.model.fnexecution.v1.ProvisionApi;
@@ -34,24 +36,22 @@ import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
 import org.apache.beam.runners.fnexecution.control.ProcessBundleDescriptors;
 import org.apache.beam.runners.fnexecution.control.SdkHarnessClient;
 import org.apache.beam.sdk.coders.Coder;
-import org.apache.beam.sdk.coders.CoderRegistry;
 import org.apache.beam.sdk.fn.data.CloseableFnDataReceiver;
 import org.apache.beam.sdk.fn.data.FnDataReceiver;
-import org.apache.beam.sdk.util.DoFnAndMainOutput;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.flink.api.common.functions.RichMapPartitionFunction;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.util.Collector;
-import org.apache.flink.util.Preconditions;
 
+/** ExecutableStage operator. */
 public class FlinkExecutableStageFunction<InputT, OutputT> extends
     RichMapPartitionFunction<WindowedValue<InputT>, WindowedValue<OutputT>> {
 
   private final RunnerApi.PTransform transform;
   private final RunnerApi.Components components;
 
-  private SdkHarnessClient client;
-  private ProcessBundleDescriptors.SimpleProcessBundleDescriptor processBundleDescriptor;
+  private transient SdkHarnessClient client;
+  private transient ProcessBundleDescriptors.SimpleProcessBundleDescriptor processBundleDescriptor;
 
   public FlinkExecutableStageFunction(RunnerApi.PTransform transform,
       RunnerApi.Components components) {
@@ -89,8 +89,7 @@ public class FlinkExecutableStageFunction<InputT, OutputT> extends
     Endpoints.ApiServiceDescriptor dataEndpoint = null;
     client = session.getClient();
     processBundleDescriptor =
-        ProcessBundleDescriptors.fromExecutableStage("1", stage, components, null);
-    // TODO: Deserialize executable stage and possibly translate into process bundle descriptor.
+        ProcessBundleDescriptors.fromExecutableStage("1", stage, components, dataEndpoint);
   }
 
   @Override
@@ -99,24 +98,23 @@ public class FlinkExecutableStageFunction<InputT, OutputT> extends
     checkState(client != null, "SDK client not prepared");
     checkState(processBundleDescriptor != null,
         "ProcessBundleDescriptor not prepared");
-    // TODO: Wire through proper coder.
-    Coder<WindowedValue<InputT>> coder = null;
-    // TODO: Set target.
-    BeamFnApi.Target target = BeamFnApi.Target.newBuilder()
-        .setName("output")
-        .build();
+    // NOTE: A double-cast is necessary below in order to hide pseudo-covariance from the compiler.
     SdkHarnessClient.RemoteInputDestination<WindowedValue<InputT>> destination =
-        (SdkHarnessClient.RemoteInputDestination<WindowedValue<InputT>>) processBundleDescriptor.getRemoteInputDestination();
-        //SdkHarnessClient.RemoteInputDestination.of(coder, target);
+        (SdkHarnessClient.RemoteInputDestination<WindowedValue<InputT>>)
+        (SdkHarnessClient.RemoteInputDestination<?>)
+            processBundleDescriptor.getRemoteInputDestination();
     SdkHarnessClient.BundleProcessor<InputT> processor = client.getProcessor(
         processBundleDescriptor.getProcessBundleDescriptor(), destination);
-    // TODO: Get/create output receivers.
+    // TODO: Support multiple output receivers and redirect them properly.
+    Map<BeamFnApi.Target, Coder<WindowedValue<?>>> outputCoders =
+        processBundleDescriptor.getOutputTargetCoders();
+    BeamFnApi.Target outputTarget = Iterables.getOnlyElement(outputCoders.keySet());
+    Coder<?> outputCoder = Iterables.getOnlyElement(outputCoders.values());
     SdkHarnessClient.RemoteOutputReceiver<WindowedValue<OutputT>> mainOutputReceiver =
         new SdkHarnessClient.RemoteOutputReceiver<WindowedValue<OutputT>>() {
           @Override
           public Coder<WindowedValue<OutputT>> getCoder() {
-            // TODO: Get output coder.
-            return null;
+            return (Coder<WindowedValue<OutputT>>) outputCoder;
           }
 
           @Override
@@ -130,7 +128,7 @@ public class FlinkExecutableStageFunction<InputT, OutputT> extends
           }
         };
     SdkHarnessClient.ActiveBundle<InputT> bundle = processor.newBundle(
-        ImmutableMap.of(target, mainOutputReceiver));
+        ImmutableMap.of(outputTarget, mainOutputReceiver));
     try (CloseableFnDataReceiver<WindowedValue<InputT>> inputReceiver = bundle.getInputReceiver()) {
       for (WindowedValue<InputT> value : input) {
         inputReceiver.accept(value);
