@@ -30,11 +30,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import javax.annotation.Nullable;
+import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.runners.core.construction.CombineTranslation;
 import org.apache.beam.runners.core.construction.CreatePCollectionViewTranslation;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.ParDoTranslation;
+import org.apache.beam.runners.core.construction.PipelineTranslation;
 import org.apache.beam.runners.core.construction.ReadTranslation;
+import org.apache.beam.runners.core.construction.graph.ExecutableStage;
 import org.apache.beam.runners.flink.translation.functions.FlinkAssignWindows;
 import org.apache.beam.runners.flink.translation.functions.FlinkDoFnFunction;
 import org.apache.beam.runners.flink.translation.functions.FlinkMergingNonShuffleReduceFunction;
@@ -126,6 +129,8 @@ class FlinkBatchTransformTranslators {
     TRANSLATORS.put(PTransformTranslation.PAR_DO_TRANSFORM_URN, new ParDoTranslatorBatch());
 
     TRANSLATORS.put(PTransformTranslation.READ_TRANSFORM_URN, new ReadSourceTranslatorBatch());
+
+    TRANSLATORS.put(ExecutableStage.URN, new ExecutableStageTranslatorBatch());
   }
 
 
@@ -682,6 +687,9 @@ class FlinkBatchTransformTranslators {
     @Override
     public void translateNode(PTransform<InputT, OutputT> transform,
         FlinkBatchTranslationContext context) {
+      RunnerApi.Components components = PipelineTranslation.toProto(
+          context.getCurrentTransform().getPipeline()).getComponents();
+      PTransformTranslation p = null;
     }
   }
 
