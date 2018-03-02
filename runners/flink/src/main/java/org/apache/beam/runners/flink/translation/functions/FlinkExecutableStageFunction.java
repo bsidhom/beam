@@ -50,6 +50,7 @@ public class FlinkExecutableStageFunction<InputT, OutputT> extends
   private final RunnerApi.PTransform transform;
   private final RunnerApi.Components components;
 
+  private transient EnvironmentSession session;
   private transient SdkHarnessClient client;
   private transient ProcessBundleDescriptors.SimpleProcessBundleDescriptor processBundleDescriptor;
 
@@ -84,9 +85,8 @@ public class FlinkExecutableStageFunction<InputT, OutputT> extends
         throw new UnsupportedOperationException();
       }
     };
-    EnvironmentSession session = manager.getSession(provisionInfo, environment, artifactSource);
-    // TODO: Get ApiServiceDescriptor for data endpoint from environment session.
-    Endpoints.ApiServiceDescriptor dataEndpoint = null;
+    session = manager.getSession(provisionInfo, environment, artifactSource);
+    Endpoints.ApiServiceDescriptor dataEndpoint = session.getDataServiceDescriptor();
     client = session.getClient();
     processBundleDescriptor =
         ProcessBundleDescriptors.fromExecutableStage("1", stage, components, dataEndpoint);
@@ -139,7 +139,10 @@ public class FlinkExecutableStageFunction<InputT, OutputT> extends
 
   @Override
   public void close() throws Exception {
+    // TODO: In what order should the client and session be closed? Should the session eventually
+    // own the client itself?
     client.close();
     client = null;
+    session.close();
   }
 }
