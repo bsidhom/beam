@@ -130,5 +130,20 @@ task validatesRunner {
   dependsOn validatesRunnerStreaming
 }
 
+task shadowJarDeploy(type: com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar) {
+  archiveName = "flink-deploy.jar"
+  mergeServiceFiles()
+  append "reference.conf"
+  from sourceSets.main.output
+  configurations = [project.configurations.runtime]
+  relocate("com.google.common", getJavaRelocatedPath("com.google.common")) {
+    // com.google.common is too generic, need to exclude guava-testlib
+    exclude "com.google.common.collect.testing.**"
+    exclude "com.google.common.escape.testing.**"
+    exclude "com.google.common.testing.**"
+    exclude "com.google.common.util.concurrent.testing.**"
+  }
+}
+
 // Generates :runners:flink:runQuickstartJavaFlinkLocal
 createJavaQuickstartValidationTask(name: 'FlinkLocal')
