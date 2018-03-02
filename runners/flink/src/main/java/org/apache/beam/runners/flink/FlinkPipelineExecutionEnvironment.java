@@ -94,7 +94,7 @@ class FlinkPipelineExecutionEnvironment {
       throw new RuntimeException(e);
     }
 
-    if (options.usePortableRunner()) {
+    if (options.getUsePortableRunner()) {
       // TODO: Rehydrate fused pipeline proto and use this below.
       GreedyPipelineFuser.fuse(PipelineTranslation.toProto(pipeline));
     }

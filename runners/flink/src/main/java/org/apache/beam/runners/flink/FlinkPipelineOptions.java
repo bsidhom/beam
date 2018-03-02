@@ -139,7 +139,7 @@ public interface FlinkPipelineOptions
 
   @Description("Whether to use the portable runner layer")
   @Default.Boolean(false)
-  Boolean usePortableRunner();
+  Boolean getUsePortableRunner();
   void setUsePortableRunner(Boolean usePortableRunner);
 
   /**
