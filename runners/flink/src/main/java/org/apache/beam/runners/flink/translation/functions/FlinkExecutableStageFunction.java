@@ -88,6 +88,7 @@ public class FlinkExecutableStageFunction<InputT, OutputT> extends
     checkState(processBundleDescriptor != null,
         "ProcessBundleDescriptor not prepared");
     // NOTE: A double-cast is necessary below in order to hide pseudo-covariance from the compiler.
+    @SuppressWarnings("unchecked")
     SdkHarnessClient.RemoteInputDestination<WindowedValue<InputT>> destination =
         (SdkHarnessClient.RemoteInputDestination<WindowedValue<InputT>>)
         (SdkHarnessClient.RemoteInputDestination<?>)
@@ -103,7 +104,9 @@ public class FlinkExecutableStageFunction<InputT, OutputT> extends
         new SdkHarnessClient.RemoteOutputReceiver<WindowedValue<OutputT>>() {
           @Override
           public Coder<WindowedValue<OutputT>> getCoder() {
-            return (Coder<WindowedValue<OutputT>>) outputCoder;
+            @SuppressWarnings("unchecked")
+            Coder<WindowedValue<OutputT>> result = (Coder<WindowedValue<OutputT>>) outputCoder;
+            return result;
           }
 
           @Override
