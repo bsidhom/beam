@@ -22,14 +22,13 @@ import static org.apache.flink.util.Preconditions.checkState;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import java.util.Map;
-import java.util.stream.Stream;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 import org.apache.beam.model.fnexecution.v1.ProvisionApi;
-import org.apache.beam.model.jobmanagement.v1.ArtifactApi;
 import org.apache.beam.model.pipeline.v1.Endpoints;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
 import org.apache.beam.runners.flink.execution.EnvironmentSession;
+import org.apache.beam.runners.flink.execution.FlinkArtifactSource;
 import org.apache.beam.runners.flink.execution.SdkHarnessManager;
 import org.apache.beam.runners.flink.execution.SingletonSdkHarnessManager;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
@@ -73,18 +72,8 @@ public class FlinkExecutableStageFunction<InputT, OutputT> extends
         // TODO: Set this from transform metadata.
         .setUrl("beam-java")
         .build();
-    // TODO: Get distributed cache-based artifact source.
-    ArtifactSource artifactSource = new ArtifactSource() {
-      @Override
-      public ArtifactApi.Manifest getManifest() {
-        throw new UnsupportedOperationException();
-      }
-
-      @Override
-      public Stream<ArtifactApi.ArtifactChunk> getArtifact(String name) {
-        throw new UnsupportedOperationException();
-      }
-    };
+    ArtifactSource artifactSource =
+        FlinkArtifactSource.createDefault(getRuntimeContext().getDistributedCache());
     session = manager.getSession(provisionInfo, environment, artifactSource);
     Endpoints.ApiServiceDescriptor dataEndpoint = session.getDataServiceDescriptor();
     client = session.getClient();
