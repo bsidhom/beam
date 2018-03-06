@@ -203,6 +203,30 @@ message PCollection {
   DisplayData display_data = 5;
 }
 
+// The payload for an executable stage. This will eventually be passed to an SDK in the form of a
+// ProcessBundleDescriptor.
+message ExecutableStagePayload {
+
+  Environment environment = 1;
+
+  PCollectionNode input = 2;
+
+  repeated PTransformNode transforms = 3;
+
+  repeated PCollectionNode outputs = 4;
+
+  message PCollectionNode {
+    string id = 1;
+    PCollection collection = 2;
+  }
+
+  message PTransformNode {
+    string id = 1;
+    PTransform transform = 2;
+  }
+
+}
+
 // The payload for the primitive ParDo transform.
 message ParDoPayload {
 
