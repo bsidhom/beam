@@ -38,6 +38,7 @@ import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.ParDoTranslation;
 import org.apache.beam.runners.core.construction.PipelineTranslation;
 import org.apache.beam.runners.core.construction.ReadTranslation;
+import org.apache.beam.runners.core.construction.SdkComponents;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
 import org.apache.beam.runners.flink.translation.functions.FlinkAssignWindows;
 import org.apache.beam.runners.flink.translation.functions.FlinkDoFnFunction;
@@ -689,6 +690,7 @@ class FlinkBatchTransformTranslators {
         FlinkBatchTranslationContext context) {
       // TODO: Assert that all inputs and outputs are PCollections.
       // TODO: Assert only a single output collection.
+      @SuppressWarnings("unchecked")
       PCollection<OutputT> output = (PCollection<OutputT>)
           Iterables.getOnlyElement(context.getCurrentTransform().getOutputs().values());
       output.getCoder();
@@ -697,8 +699,16 @@ class FlinkBatchTransformTranslators {
               WindowedValue.getFullCoder(
                   output.getCoder(),
                   output.getWindowingStrategy().getWindowFn().windowCoder()));
-      // TODO: How do we construct the proto here?
-      RunnerApi.PTransform transformProto = null;
+      RunnerApi.PTransform transformProto;
+      try {
+        // The ExecutableStage PTransform is self-contained.
+        transformProto = PTransformTranslation.toProto(
+            context.getCurrentTransform(),
+            Collections.emptyList(),
+            SdkComponents.create());
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
       RunnerApi.Components components = PipelineTranslation.toProto(
           context.getCurrentTransform().getPipeline()).getComponents();
       FlinkExecutableStageFunction<InputT, OutputT> function =
