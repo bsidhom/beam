@@ -100,19 +100,19 @@ public class SingletonDockerEnvironmentManager implements EnvironmentManager {
     String artifactEndpoint = retrievalServiceServer.getApiServiceDescriptor().getUrl();
     String provisionEndpoint = provisioningServiceServer.getApiServiceDescriptor().getUrl();
     String controlEndpoint = controlServiceServer.getApiServiceDescriptor().getUrl();
-    List<String> args = Arrays.asList(
+    List<String> dockerArgs = Arrays.asList(
         "-v",
-        String.format("%s:%S", workerPersistentDirectory, semiPersistentDirectory),
+        String.format("%s:%s", workerPersistentDirectory, semiPersistentDirectory),
         // TODO: This needs to be special-cased for Mac.
-        "--network=host",
-        containerImage,
+        "--network=host");
+    List<String> sdkHarnessArgs = Arrays.asList(
         String.format("--id=%s", environmentId),
         String.format("--logging_endpoint=%s", loggingEndpoint),
         String.format("--artifact_endpoint=%s", artifactEndpoint),
         String.format("--provision_endpoint=%s", provisionEndpoint),
         String.format("--control_endpoint=%s", controlEndpoint),
         String.format("--semi_persist_dir=%s", semiPersistentDirectory));
-    String containerId = docker.runImage(containerImage, args);
+    String containerId = docker.runImage(containerImage, dockerArgs, sdkHarnessArgs);
     System.out.println("GOT ID: " + containerId);
     return DockerContainerEnvironment.create(docker, environment, containerId,
         controlServiceServer.getService().getClient());

@@ -58,16 +58,17 @@ public class DockerWrapper {
    * Runs the given container image with the given command line arguments. Returns the running
    * container id.
    */
-  public String runImage(String imageTag, List<String> args) throws IOException, TimeoutException,
-      InterruptedException {
+  public String runImage(String imageTag, List<String> dockerArgs, List<String> containerArgs)
+      throws IOException, TimeoutException, InterruptedException {
     checkArgument(!imageTag.isEmpty(), "Docker image tag required");
     // TODO: Validate args?
     return runShortCommand(ImmutableList.<String>builder()
         .add(dockerExecutable)
         .add("run")
         .add("-d")
+        .addAll(dockerArgs)
         .add(imageTag)
-        .addAll(args)
+        .addAll(containerArgs)
         .build());
   }
 
