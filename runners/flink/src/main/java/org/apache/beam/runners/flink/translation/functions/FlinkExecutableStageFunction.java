@@ -70,7 +70,7 @@ public class FlinkExecutableStageFunction<InputT, OutputT> extends
         .build();
     RunnerApi.Environment environment = RunnerApi.Environment.newBuilder()
         // TODO: Set this from transform metadata.
-        .setUrl("beam-java")
+        .setUrl("gcr.io/google.com/hadoop-cloud-dev/beam/java")
         .build();
     ArtifactSource artifactSource =
         FlinkArtifactSource.createDefault(getRuntimeContext().getDistributedCache());
