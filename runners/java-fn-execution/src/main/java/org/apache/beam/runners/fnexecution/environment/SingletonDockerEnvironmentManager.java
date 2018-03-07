@@ -22,9 +22,11 @@ import static com.google.common.base.Preconditions.checkArgument;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
+import java.util.regex.Pattern;
 import javax.annotation.concurrent.GuardedBy;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
 import org.apache.beam.runners.fnexecution.GrpcFnServer;
@@ -92,14 +94,25 @@ public class SingletonDockerEnvironmentManager implements EnvironmentManager {
       throws IOException, TimeoutException, InterruptedException {
     // TODO: Generate environment id correctly.
     String environmentId = Long.toString(-123);
-    Path workerPersistentDirectory = Files.createTempDirectory("worker_persistent_directory");
-    Path semiPersistentDirectory = Files.createTempDirectory("semi_persistent_dir");
+    Path workerPersistentDirectory = Files.createTempDirectory(Paths.get("/tmp"), "worker_persistent_directory");
+    Path semiPersistentDirectory = Files.createTempDirectory(Paths.get("/tmp"), "semi_persistent_dir");
+    //Path semiPersistentDirectory = Paths.get("/tmp");
     String containerImage = environment.getUrl();
     // TODO: The default service address will not work for Docker for Mac.
     String loggingEndpoint = loggingServiceServer.getApiServiceDescriptor().getUrl();
     String artifactEndpoint = retrievalServiceServer.getApiServiceDescriptor().getUrl();
     String provisionEndpoint = provisioningServiceServer.getApiServiceDescriptor().getUrl();
     String controlEndpoint = controlServiceServer.getApiServiceDescriptor().getUrl();
+
+    // HACK: Extract ports and rewrite listen interface on Mac.
+    System.out.println("LOGGING: \"" + loggingEndpoint + '"');
+    System.out.println("ARTIFACT: \"" + artifactEndpoint + '"');
+    System.out.println("PROVISION: \"" + provisionEndpoint + '"');
+    System.out.println("CONTROL: \"" + controlEndpoint + '"');
+    loggingEndpoint = macEndpoint(loggingEndpoint);
+    artifactEndpoint = macEndpoint(artifactEndpoint);
+    provisionEndpoint = macEndpoint(provisionEndpoint);
+    controlEndpoint = macEndpoint(controlEndpoint);
     List<String> dockerArgs = Arrays.asList(
         "-v",
         String.format("%s:%s", workerPersistentDirectory, semiPersistentDirectory),
@@ -116,5 +129,9 @@ public class SingletonDockerEnvironmentManager implements EnvironmentManager {
     System.out.println("GOT ID: " + containerId);
     return DockerContainerEnvironment.create(docker, environment, containerId,
         controlServiceServer.getService().getClient());
+  }
+
+  private static String macEndpoint(String endpoint) {
+    return endpoint.replace("localhost", "docker.for.mac.host.internal");
   }
 }
