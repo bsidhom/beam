@@ -64,6 +64,7 @@ import org.apache.beam.sdk.coders.SetCoder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.coders.VarIntCoder;
 import org.apache.beam.sdk.io.GenerateSequence;
+import org.apache.beam.sdk.io.TextIO;
 import org.apache.beam.sdk.options.Default;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.state.BagState;
@@ -111,6 +112,7 @@ import org.apache.beam.sdk.values.TimestampedValue;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.TupleTagList;
 import org.apache.beam.sdk.values.TypeDescriptor;
+import org.apache.beam.sdk.values.TypeDescriptors;
 import org.hamcrest.Matchers;
 import org.joda.time.Duration;
 import org.joda.time.Instant;
@@ -324,6 +326,34 @@ public class ParDoTest implements Serializable {
         }
       }
     }
+  }
+
+  @Test
+  @Category(ValidatesRunner.class)
+  public void testImpulse() {
+    pipeline.apply(Impulse.create())
+        .apply(ParDo.of(new DoFn<byte[], Integer>() {
+          @ProcessElement
+          public void processElement(ProcessContext ctx) {
+            ctx.output(1);
+            ctx.output(2);
+            ctx.output(3);
+          }
+        }))
+        .apply(WithKeys.of("foo"))
+        .apply(GroupByKey.create());
+    pipeline.run().waitUntilFinish();
+  }
+
+  @Test
+  @Category(ValidatesRunner.class)
+  public void testSimpleParDo() {
+    List<Integer> inputs = Arrays.asList(1, 2, 3);
+    PCollection<String> output = pipeline
+        .apply(Create.of(inputs))
+        .apply(MapElements.into(TypeDescriptors.strings()).via(String::valueOf));
+    output.apply(TextIO.write().to("/tmp/output"));
+    pipeline.run().waitUntilFinish();
   }
 
   @Test
