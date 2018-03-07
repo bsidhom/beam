@@ -121,24 +121,18 @@ public interface ExecutableStage {
           .build());
     }
 
+    int[] i = new int[1];
     return PTransform.newBuilder()
         .setSpec(
             FunctionSpec.newBuilder()
                 .setUrn(ExecutableStage.URN)
                 .setPayload(payload.build().toByteString()))
+        .putInputs("input", getInputPCollection().getId())
+        .putAllOutputs(getOutputPCollections().stream().collect(Collectors.toMap(
+            pcNode -> String.format("materialized_%s", i[0]++),
+            PCollectionNode::getId
+        )))
         .build();
-    //PTransform.Builder pt = PTransform.newBuilder();
-    //pt.putInputs("input", getInputPCollection().getId());
-    //int i = 0;
-    //for (PCollectionNode materializedPCollection : getOutputPCollections()) {
-    //  pt.putOutputs(String.format("materialized_%s", i), materializedPCollection.getId());
-    //  i++;
-    //}
-    //for (PTransformNode fusedTransform : getTransforms()) {
-    //  pt.addSubtransforms(fusedTransform.getId());
-    //}
-    //pt.setSpec(FunctionSpec.newBuilder().setUrn(ExecutableStage.URN));
-    //return pt.build();
   }
 
   /**
@@ -167,30 +161,5 @@ public interface ExecutableStage {
         .map(output -> PipelineNode.pCollection(output.getId(), output.getCollection()))
         .collect(Collectors.toList());
     return ImmutableExecutableStage.of(environment, input, transforms, outputs);
-    //// It may be better to put this in an explicit Payload if other metadata becomes required
-    //Optional<Environment> environment =
-    //    Environments.getEnvironment(ptransform.getSubtransforms(0), components);
-    //checkArgument(
-    //    environment.isPresent(),
-    //    "%s with no %s",
-    //    ExecutableStage.class.getSimpleName(),
-    //    Environment.class.getSimpleName());
-    //String inputId = getOnlyElement(ptransform.getInputsMap().values());
-    //PCollectionNode inputNode =
-    //    PipelineNode.pCollection(inputId, components.getPcollectionsOrThrow(inputId));
-    //Collection<PCollectionNode> outputNodes =
-    //    ptransform
-    //        .getOutputsMap()
-    //        .values()
-    //        .stream()
-    //        .map(id -> PipelineNode.pCollection(id, components.getPcollectionsOrThrow(id)))
-    //        .collect(Collectors.toSet());
-    //Collection<PTransformNode> transformNodes =
-    //    ptransform
-    //        .getSubtransformsList()
-    //        .stream()
-    //        .map(id -> PipelineNode.pTransform(id, components.getTransformsOrThrow(id)))
-    //        .collect(Collectors.toSet());
-    //return ImmutableExecutableStage.of(environment.get(), inputNode, transformNodes, outputNodes);
   }
 }
