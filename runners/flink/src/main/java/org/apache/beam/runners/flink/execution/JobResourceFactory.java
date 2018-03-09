@@ -18,11 +18,14 @@ import org.apache.beam.runners.fnexecution.logging.GrpcLoggingService;
 import org.apache.beam.runners.fnexecution.logging.LogWriter;
 import org.apache.beam.runners.fnexecution.logging.Slf4jLogWriter;
 import org.apache.beam.runners.fnexecution.provisioning.StaticGrpcProvisionService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Factory for resources that are managed by {@link JobResourceManager}.
  */
 public class JobResourceFactory {
+  private static final Logger LOG = LoggerFactory.getLogger(JobResourceFactory.class);
 
   public static JobResourceFactory create(ServerFactory serverFactory, ExecutorService executor) {
     return new JobResourceFactory(serverFactory, executor);
@@ -40,21 +43,30 @@ public class JobResourceFactory {
   private GrpcFnServer<GrpcLoggingService> loggingService() throws IOException {
     LogWriter logWriter = Slf4jLogWriter.getDefault();
     GrpcLoggingService loggingService = GrpcLoggingService.forWriter(logWriter);
-    return GrpcFnServer.allocatePortAndCreateFor(loggingService, serverFactory);
+    GrpcFnServer<GrpcLoggingService> server =
+        GrpcFnServer.allocatePortAndCreateFor(loggingService, serverFactory);
+    LOG.info("Created logging server at {}.", server.getApiServiceDescriptor());
+    return server;
   }
 
   /** Create a new artifact retrieval service. */
   private GrpcFnServer<ArtifactRetrievalService> artifactRetrievalService(
       ArtifactSource artifactSource) throws IOException {
     ArtifactRetrievalService retrievalService = GrpcArtifactProxyService.fromSource(artifactSource);
-    return GrpcFnServer.allocatePortAndCreateFor(retrievalService, serverFactory);
+    GrpcFnServer<ArtifactRetrievalService> server =
+        GrpcFnServer.allocatePortAndCreateFor(retrievalService, serverFactory);
+    LOG.info("Created artifact retrieval service at {}.", server.getApiServiceDescriptor());
+    return server;
   }
 
   /** Create a new provisioning service. */
   private GrpcFnServer<StaticGrpcProvisionService> provisionService(ProvisionInfo jobInfo)
       throws IOException {
     StaticGrpcProvisionService provisioningService = StaticGrpcProvisionService.create(jobInfo);
-    return GrpcFnServer.allocatePortAndCreateFor(provisioningService, serverFactory);
+    GrpcFnServer<StaticGrpcProvisionService> server =
+        GrpcFnServer.allocatePortAndCreateFor(provisioningService, serverFactory);
+    LOG.info("Created provisioning service at {}.", server.getApiServiceDescriptor());
+    return server;
   }
 
   /** Create a new control service. */
@@ -62,13 +74,19 @@ public class JobResourceFactory {
       throws IOException {
     SdkHarnessClientControlService controlService =
         SdkHarnessClientControlService.create(() -> dataService);
-    return GrpcFnServer.allocatePortAndCreateFor(controlService, serverFactory);
+    GrpcFnServer<SdkHarnessClientControlService> server =
+        GrpcFnServer.allocatePortAndCreateFor(controlService, serverFactory);
+    LOG.info("Created control service at {}.", server.getApiServiceDescriptor());
+    return server;
   }
 
   /** Create a new data service. */
   public GrpcFnServer<GrpcDataService> dataService() throws IOException {
     GrpcDataService dataService = GrpcDataService.create(executor);
-    return GrpcFnServer.allocatePortAndCreateFor(dataService, serverFactory);
+    GrpcFnServer<GrpcDataService> server =
+        GrpcFnServer.allocatePortAndCreateFor(dataService, serverFactory);
+    LOG.info("Created data service at {}.", server.getApiServiceDescriptor());
+    return server;
   }
 
   /** Create a new container manager from artifact source and jobInfo. */

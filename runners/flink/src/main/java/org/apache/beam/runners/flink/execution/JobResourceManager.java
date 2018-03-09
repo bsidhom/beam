@@ -8,6 +8,8 @@ import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
 import org.apache.beam.runners.fnexecution.data.GrpcDataService;
 import org.apache.beam.runners.fnexecution.environment.EnvironmentManager;
 import org.apache.beam.runners.fnexecution.environment.RemoteEnvironment;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A class that manages the long-lived resources of an individual job.
@@ -15,6 +17,7 @@ import org.apache.beam.runners.fnexecution.environment.RemoteEnvironment;
  * <p>Only one harness environment is currently supported per job.
  */
 public class JobResourceManager {
+  private static final Logger LOG = LoggerFactory.getLogger(JobResourceManager.class);
 
   /** Create a new JobResourceManager. */
   public static JobResourceManager create(
@@ -53,6 +56,7 @@ public class JobResourceManager {
 
   /** Get a new environment session using the manager's resources. */
   public EnvironmentSession getSession() {
+    LOG.info("Creating new enironment session for Job {}.", jobInfo.getJobName());
     if (!isStarted()) {
       throw new IllegalStateException("JobResourceManager has not been properly initialized.");
     }

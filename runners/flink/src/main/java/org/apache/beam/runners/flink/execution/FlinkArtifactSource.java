@@ -14,12 +14,15 @@ import org.apache.beam.model.jobmanagement.v1.ArtifactApi.Manifest;
 import org.apache.beam.runners.flink.FlinkCachedArtifactPaths;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
 import org.apache.flink.api.common.cache.DistributedCache;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * An {@link org.apache.beam.runners.fnexecution.artifact.ArtifactSource} that draws artifacts
  * from the Flink Distributed File Cache {@link org.apache.flink.api.common.cache.DistributedCache}.
  */
 public class FlinkArtifactSource implements ArtifactSource {
+  private static final Logger LOG = LoggerFactory.getLogger(FlinkArtifactSource.class);
   private static final int DEFAULT_CHUNK_SIZE_BYTES = 2 * 1024 * 1024;
 
   public static FlinkArtifactSource createDefault(DistributedCache cache) {
@@ -41,6 +44,7 @@ public class FlinkArtifactSource implements ArtifactSource {
   @Override
   public Manifest getManifest() throws IOException {
     String path = paths.getManifestPath();
+    LOG.debug("Retrieving manifest {}.", path);
     File manifest;
     try {
       // cache.geFile throws an IllegalArgumentException for unrecognized paths
@@ -56,6 +60,7 @@ public class FlinkArtifactSource implements ArtifactSource {
   @Override
   public void getArtifact(String name, StreamObserver<ArtifactChunk> responseObserver) {
     String path = paths.getArtifactPath(name);
+    LOG.debug("Retrieving artifact {}.", path);
     try {
       // cache.geFile throws an IllegalArgumentException for unrecognized paths
       File artifact = cache.getFile(path);
