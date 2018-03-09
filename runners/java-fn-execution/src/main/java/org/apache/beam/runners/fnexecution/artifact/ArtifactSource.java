@@ -18,9 +18,8 @@
 
 package org.apache.beam.runners.fnexecution.artifact;
 
-import java.io.IOException;
-
 import io.grpc.stub.StreamObserver;
+import java.io.IOException;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.ArtifactChunk;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.Manifest;
 
