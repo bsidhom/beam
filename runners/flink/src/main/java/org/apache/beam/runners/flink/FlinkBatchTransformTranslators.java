@@ -709,6 +709,7 @@ class FlinkBatchTransformTranslators {
       @SuppressWarnings("unchecked")
       RunnerApi.Components components = PipelineTranslation.toProto(
           context.getCurrentTransform().getPipeline()).getComponents();
+      System.out.println("COMPONENTS: " + components);
       FlinkExecutableStageFunction<InputT, OutputT> function =
           new FlinkExecutableStageFunction<>(stagePayload, components);
       DataSet<WindowedValue<InputT>> inputDataSet =

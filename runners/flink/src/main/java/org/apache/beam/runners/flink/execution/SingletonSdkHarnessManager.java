@@ -90,6 +90,7 @@ public class SingletonSdkHarnessManager implements  SdkHarnessManager {
               serverFactory,
               executorService);
       jobResourceManager.start();
+      System.out.println("STARTED JOB RESOURCE MANAGER");
     }
 
     return jobResourceManager.getSession();

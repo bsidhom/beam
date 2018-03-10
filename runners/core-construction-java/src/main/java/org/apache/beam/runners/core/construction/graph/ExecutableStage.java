@@ -102,13 +102,16 @@ public interface ExecutableStage {
     payload.setEnvironment(getEnvironment());
 
     PCollectionNode input = getInputPCollection();
+    System.out.println("ADDING INPUT: " + input.getId());
     payload.setInput(input.getId());
 
     for (PTransformNode transform : getTransforms()) {
+      System.out.println("ADDING TRANSFORM: " + transform.getId());
       payload.addTransforms(transform.getId());
     }
 
     for (PCollectionNode output : getOutputPCollections()) {
+      System.out.println("ADDING OUTPUT: " + output.getId());
       payload.addOutputs(output.getId());
     }
 
@@ -118,6 +121,8 @@ public interface ExecutableStage {
             FunctionSpec.newBuilder()
                 .setUrn(ExecutableStage.URN)
                 .setPayload(payload.build().toByteString()))
+        .addAllSubtransforms(
+            getTransforms().stream().map(PTransformNode::getId).collect(Collectors.toList()))
         .putInputs("input", getInputPCollection().getId())
         .putAllOutputs(getOutputPCollections().stream().collect(Collectors.toMap(
             pcNode -> String.format("materialized_%s", i[0]++),
@@ -141,7 +146,10 @@ public interface ExecutableStage {
     PCollectionNode input = PipelineNode.pCollection(payload.getInput(),
         components.getPcollectionsOrThrow(payload.getInput()));
     List<PTransformNode> transforms = payload.getTransformsList().stream()
-        .map(id -> PipelineNode.pTransform(id, components.getTransformsOrThrow(id)))
+        .map(id -> {
+          System.out.println("LOOKING UP TRANSFORM: " + id);
+          return PipelineNode.pTransform(id, components.getTransformsOrThrow(id));
+        })
         .collect(Collectors.toList());
     List<PCollectionNode> outputs = payload.getOutputsList().stream()
         .map(id -> PipelineNode.pCollection(id, components.getPcollectionsOrThrow(id)))

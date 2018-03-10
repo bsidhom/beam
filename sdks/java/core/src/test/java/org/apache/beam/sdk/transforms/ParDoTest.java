@@ -331,6 +331,10 @@ public class ParDoTest implements Serializable {
   @Test
   @Category(ValidatesRunner.class)
   public void testImpulse() {
+    String classpath = System.getProperty("java.class.path");
+    for (String entry : classpath.split(":")) {
+      System.out.println("CLASSPATH ENTRY: " + entry);
+    }
     pipeline.apply(Impulse.create())
         .apply(ParDo.of(new DoFn<byte[], Integer>() {
           @ProcessElement

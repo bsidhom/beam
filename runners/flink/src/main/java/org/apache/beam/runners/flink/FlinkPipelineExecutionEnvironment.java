@@ -104,10 +104,13 @@ class FlinkPipelineExecutionEnvironment {
       pipeline.replaceAll(ImmutableList.of(JavaReadViaImpulse.boundedOverride()));
       RunnerApi.Pipeline pipelineProto = PipelineTranslation.toProto(pipeline);
       RunnerApi.Components components = pipelineProto.getComponents();
+      System.out.println("COMPONENTS BEFORE FUSING: " + components);
       // Fused pipeline proto.
       pipelineProto = GreedyPipelineFuser.fuse(pipelineProto).toPipeline(components);
+      System.out.println("COMPONENTS AFTER FUSING: " + pipelineProto.getComponents());
       try {
         pipeline = PipelineTranslation.fromProto(pipelineProto);
+        System.out.println("COMPONENTS AFTER PROTO" + PipelineTranslation.toProto(pipeline).getComponents());
       } catch (IOException e) {
         throw new RuntimeException(e);
       }

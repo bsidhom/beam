@@ -120,9 +120,10 @@ public class BeamFnLoggingClient implements AutoCloseable {
 
     // Use the passed in logging options to configure the various logger levels.
     SdkHarnessOptions loggingOptions = options.as(SdkHarnessOptions.class);
-    if (loggingOptions.getDefaultSdkHarnessLogLevel() != null) {
-      rootLogger.setLevel(LEVEL_CONFIGURATION.get(loggingOptions.getDefaultSdkHarnessLogLevel()));
-    }
+    //if (loggingOptions.getDefaultSdkHarnessLogLevel() != null) {
+    //  rootLogger.setLevel(LEVEL_CONFIGURATION.get(loggingOptions.getDefaultSdkHarnessLogLevel()));
+    //}
+    rootLogger.setLevel(Level.ALL);
 
     if (loggingOptions.getSdkHarnessLogLevelOverrides() != null) {
       for (Map.Entry<String, SdkHarnessOptions.LogLevel> loggerOverride :

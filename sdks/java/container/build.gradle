@@ -51,6 +51,11 @@ task copyDockerfileDependencies(type: Copy) {
   into "build/target"
 }
 
+task copyCrap(type: Copy) {
+    from "/tmp/docker"
+    into "build/target"
+}
+
 golang {
   packagePath = 'github.com/apache/beam/sdks/java/boot'
   build {
@@ -73,3 +78,4 @@ docker {
 // Ensure that we build the required resources and copy and file dependencies from related projects
 dockerPrepare.dependsOn build
 dockerPrepare.dependsOn copyDockerfileDependencies
+dockerPrepare.dependsOn copyCrap

@@ -48,28 +48,28 @@ public class ProcessJavaEnvironmentManager implements EnvironmentManager {
 
   public static ProcessJavaEnvironmentManager forServices(
       GrpcFnServer<SdkHarnessClientControlService> controlServiceServer,
-      GrpcFnServer<GrpcDataService> dataServer,
       GrpcFnServer<GrpcLoggingService> loggingServiceServer,
       GrpcFnServer<ArtifactRetrievalService> retrievalServiceServer,
-      GrpcFnServer<StaticGrpcProvisionService> provisioningServiceServer) {
-    return new ProcessJavaEnvironmentManager(controlServiceServer, dataServer, loggingServiceServer,
-        retrievalServiceServer, provisioningServiceServer);
+      GrpcFnServer<StaticGrpcProvisionService> provisioningServiceServer,
+      GrpcDataService dataService) {
+    return new ProcessJavaEnvironmentManager(controlServiceServer, loggingServiceServer,
+        retrievalServiceServer, provisioningServiceServer, dataService);
   }
 
   private final GrpcFnServer<SdkHarnessClientControlService> controlServiceServer;
-  private final GrpcFnServer<GrpcDataService> dataServer;
   private final GrpcFnServer<GrpcLoggingService> loggingServiceServer;
   private final GrpcFnServer<ArtifactRetrievalService> retrievalServiceServer;
   private final GrpcFnServer<StaticGrpcProvisionService> provisioningServiceServer;
+  private final GrpcDataService dataService;
 
   private ProcessJavaEnvironmentManager(
       GrpcFnServer<SdkHarnessClientControlService> controlServiceServer,
-      GrpcFnServer<GrpcDataService> dataServer,
       GrpcFnServer<GrpcLoggingService> loggingServiceServer,
       GrpcFnServer<ArtifactRetrievalService> retrievalServiceServer,
-      GrpcFnServer<StaticGrpcProvisionService> provisioningServiceServer) {
+      GrpcFnServer<StaticGrpcProvisionService> provisioningServiceServer,
+      GrpcDataService dataService) {
     this.controlServiceServer = controlServiceServer;
-    this.dataServer = dataServer;
+    this.dataService = dataService;
     this.loggingServiceServer = loggingServiceServer;
     this.retrievalServiceServer = retrievalServiceServer;
     this.provisioningServiceServer = provisioningServiceServer;
@@ -100,7 +100,7 @@ public class ProcessJavaEnvironmentManager implements EnvironmentManager {
     });
     System.out.println(ignored);
     SdkHarnessClient client = SdkHarnessClient.usingFnApiClient(clientPool.take(),
-        dataServer.getService());
+        dataService);
     return new Handle(environment, client);
   }
 

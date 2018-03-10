@@ -99,7 +99,7 @@ def createValidatesRunnerTask(Map m) {
     classpath = configurations.validatesRunner
     testClassesDirs = files(project(":sdks:java:core").sourceSets.test.output.classesDirs)
     maxParallelForks 4
-    jvmArgs "-Xdebug", "-Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=5005"
+    //jvmArgs "-Xdebug", "-Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=5005"
     if (config.streaming) {
       useJUnit {
         includeCategories 'org.apache.beam.sdk.testing.ValidatesRunner'
