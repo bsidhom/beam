@@ -26,6 +26,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -34,12 +35,14 @@ import java.util.Map.Entry;
 import java.util.TreeMap;
 import javax.annotation.Nullable;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
+import org.apache.beam.runners.core.construction.CoderTranslation;
 import org.apache.beam.runners.core.construction.CombineTranslation;
 import org.apache.beam.runners.core.construction.CreatePCollectionViewTranslation;
 import org.apache.beam.runners.core.construction.ExecutableStageTranslation;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.ParDoTranslation;
 import org.apache.beam.runners.core.construction.ReadTranslation;
+import org.apache.beam.runners.core.construction.RehydratedComponents;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
 import org.apache.beam.runners.flink.translation.functions.FlinkAssignWindows;
 import org.apache.beam.runners.flink.translation.functions.FlinkDoFnFunction;
@@ -96,6 +99,8 @@ import org.apache.flink.api.java.operators.GroupReduceOperator;
 import org.apache.flink.api.java.operators.Grouping;
 import org.apache.flink.api.java.operators.MapPartitionOperator;
 import org.apache.flink.api.java.operators.SingleInputUdfOperator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Translators for transforming {@link PTransform PTransforms} to
@@ -106,6 +111,9 @@ class FlinkBatchTransformTranslators {
   // --------------------------------------------------------------------------------------------
   //  Transform Translator Registry
   // --------------------------------------------------------------------------------------------
+
+  private static final Logger LOG =
+      LoggerFactory.getLogger(FlinkBatchTransformTranslators.class);
 
   @SuppressWarnings("rawtypes")
   private static final Map<
@@ -697,25 +705,6 @@ class FlinkBatchTransformTranslators {
       // TODO: Fail on splittable DoFns.
       // TODO: Special-case single outputs to avoid multiplexing PCollections.
 
-      Map<TupleTag<?>, PValue> outputs = context.getOutputs(transform);
-      BiMap<TupleTag<?>, Integer> outputMap = createOutputMap(outputs.keySet());
-      // Collect all output Coders and create a UnionCoder for our tagged outputs.
-      List<Coder<?>> outputCoders = Lists.newArrayList();
-      // Enforce tuple tag sorting by union tag index.
-      for (TupleTag<?> tag : new TreeMap<>(outputMap.inverse()).values()) {
-        PValue taggedValue = outputs.get(tag);
-        checkState(
-            taggedValue instanceof PCollection,
-            "Within ParDo, got a non-PCollection output %s of type %s",
-            taggedValue,
-            taggedValue.getClass().getSimpleName());
-        PCollection<?> coll = (PCollection<?>) taggedValue;
-        outputCoders.add(coll.getCoder());
-      }
-      UnionCoder unionCoder = UnionCoder.of(outputCoders);
-      TypeInformation<RawUnionValue> typeInformation =
-          new CoderTypeInformation<>(unionCoder);
-
       RunnerApi.ExecutableStagePayload stagePayload;
       try {
         stagePayload =
@@ -723,6 +712,30 @@ class FlinkBatchTransformTranslators {
       } catch (IOException e) {
         throw new RuntimeException(e);
       }
+
+      //Map<TupleTag<?>, PValue> outputs = context.getOutputs(transform);
+      BiMap<String, Integer> outputMap = createOutputMap(stagePayload.getOutputsList());
+      // Collect all output Coders and create a UnionCoder for our tagged outputs.
+      List<Coder<?>> outputCoders = Lists.newArrayList();
+      // Enforce tuple tag sorting by union tag index.
+      RunnerApi.Components components = context.getComponents();
+      RehydratedComponents rehydratedComponents = RehydratedComponents.forComponents(components);
+      for (String outputId : new TreeMap<>(outputMap.inverse()).values()) {
+        String coderId = components.getPcollectionsOrThrow(outputId)
+            .getCoderId();
+        try {
+          Coder<?> coder = CoderTranslation.fromProto(components.getCodersOrThrow(coderId), rehydratedComponents);
+          outputCoders.add(coder);
+        } catch (IOException e) {
+          throw new RuntimeException(e);
+        }
+      }
+
+      UnionCoder unionCoder = UnionCoder.of(outputCoders);
+      TypeInformation<RawUnionValue> typeInformation =
+          new CoderTypeInformation<>(unionCoder);
+
+
       FlinkExecutableStageFunction<InputT> function =
           new FlinkExecutableStageFunction<>(stagePayload, context.getComponents(),
               outputMap);
@@ -733,9 +746,11 @@ class FlinkBatchTransformTranslators {
               typeInformation,
               function,
               transform.getName());
-      for (Entry<TupleTag<?>, PValue> output : outputs.entrySet()) {
-        pruneOutput(taggedDataset, context, outputMap.get(output.getKey()),
-            (PCollection) output.getValue());
+      for (String outputId : stagePayload.getOutputsList()) {
+        // TODO: Key the Flink context outputs on ids or globally unique (stable) names and pass
+        // PCollections by id below.
+        pruneOutput(taggedDataset, context, outputMap.get(outputId),
+            (PCollection) null);
       }
       if (context.getCurrentTransform().getOutputs().isEmpty()) {
         // TODO: Is this still necessary?
@@ -756,10 +771,10 @@ class FlinkBatchTransformTranslators {
       context.setOutputDataSet(collection, pruningOperator);
     }
 
-    private static BiMap<TupleTag<?>, Integer> createOutputMap(Iterable<TupleTag<?>> tags) {
-      ImmutableBiMap.Builder<TupleTag<?>, Integer> builder = ImmutableBiMap.builder();
+    private static BiMap<String, Integer> createOutputMap(Collection<String> ids) {
+      ImmutableBiMap.Builder<String, Integer> builder = ImmutableBiMap.builder();
       int outputIndex = 0;
-      for (TupleTag<?> tag : tags) {
+      for (String tag : ids) {
         builder.put(tag, outputIndex);
         outputIndex++;
       }

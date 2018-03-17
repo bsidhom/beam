@@ -138,6 +138,7 @@ class FlinkPipelineExecutionEnvironment {
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
+    LOG.warn("INPUT PROTO: {}", pipelineProto);
 
     if (ExperimentalOptions.hasExperiment(options, "beam_fn_api")) {
       LOG.info("Using portability layer");

@@ -25,7 +25,6 @@ import com.google.protobuf.Struct;
 import io.netty.util.internal.ThreadLocalRandom;
 import java.math.BigInteger;
 import java.util.Map;
-import java.util.logging.Logger;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 import org.apache.beam.model.fnexecution.v1.ProvisionApi;
 import org.apache.beam.model.pipeline.v1.Endpoints;
@@ -50,17 +49,19 @@ import org.apache.beam.sdk.values.TupleTag;
 import org.apache.flink.api.common.functions.RichMapPartitionFunction;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.util.Collector;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** ExecutableStage operator. */
 public class FlinkExecutableStageFunction<InputT> extends
     RichMapPartitionFunction<WindowedValue<InputT>, RawUnionValue> {
 
-  private static final Logger logger =
-      Logger.getLogger(FlinkExecutableStageFunction.class.getName());
+  private static final Logger LOG =
+      LoggerFactory.getLogger(FlinkExecutableStageFunction.class);
 
   private final RunnerApi.ExecutableStagePayload payload;
   private final RunnerApi.Components components;
-  private final Map<TupleTag<?>, Integer> outputMap;
+  private final Map<String, Integer> outputMap;
 
   private transient EnvironmentSession session;
   private transient SdkHarnessClient client;
@@ -68,7 +69,7 @@ public class FlinkExecutableStageFunction<InputT> extends
 
   public FlinkExecutableStageFunction(RunnerApi.ExecutableStagePayload payload,
       RunnerApi.Components components,
-      Map<TupleTag<?>, Integer> outputMap) {
+      Map<String, Integer> outputMap) {
     this.payload = payload;
     this.components = components;
     this.outputMap = outputMap;
@@ -94,11 +95,11 @@ public class FlinkExecutableStageFunction<InputT> extends
     session = manager.getSession(provisionInfo, environment, artifactSource);
     Endpoints.ApiServiceDescriptor dataEndpoint = session.getDataServiceDescriptor();
     client = session.getClient();
-    logger.info(String.format("Data endpoint: %s", dataEndpoint.getUrl()));
+    LOG.debug("Data endpoint: {}", dataEndpoint.getUrl());
     String id = new BigInteger(32, ThreadLocalRandom.current()).toString(36);
     processBundleDescriptor =
         ProcessBundleDescriptors.fromExecutableStage(id, stage, components, dataEndpoint);
-    logger.info(String.format("Process bundle descriptor: %s", processBundleDescriptor));
+    LOG.debug("Process bundle descriptor: {}", processBundleDescriptor);
   }
 
   @Override
@@ -113,6 +114,7 @@ public class FlinkExecutableStageFunction<InputT> extends
         (SdkHarnessClient.RemoteInputDestination<WindowedValue<InputT>>)
         (SdkHarnessClient.RemoteInputDestination<?>)
             processBundleDescriptor.getRemoteInputDestination();
+
     SdkHarnessClient.BundleProcessor<InputT> processor = client.getProcessor(
         processBundleDescriptor.getProcessBundleDescriptor(), destination);
     processor.getRegistrationFuture().toCompletableFuture().get();
@@ -123,7 +125,12 @@ public class FlinkExecutableStageFunction<InputT> extends
     final Object collectorLock = new Object();
     for (Map.Entry<BeamFnApi.Target, Coder<WindowedValue<?>>> entry : outputCoders.entrySet()) {
       BeamFnApi.Target target = entry.getKey();
+      String pcollectionId = processBundleDescriptor.getProcessBundleDescriptor()
+          .getTransformsOrThrow(target.getPrimitiveTransformReference())
+          .getInputsOrThrow(target.getName());
+      int unionTag = outputMap.get(pcollectionId);
       Coder<WindowedValue<?>> coder = entry.getValue();
+      LOG.warn("CODER FOR {}: {}", target, coder);
       SdkHarnessClient.RemoteOutputReceiver<WindowedValue<?>> receiver = new SdkHarnessClient.RemoteOutputReceiver<WindowedValue<?>>() {
         @Override
         public Coder<WindowedValue<?>> getCoder() {
@@ -135,7 +142,7 @@ public class FlinkExecutableStageFunction<InputT> extends
           return new FnDataReceiver<WindowedValue<?>>() {
             @Override
             public void accept(WindowedValue<?> input) throws Exception {
-              logger.finer(String.format("Receiving value: %s", input));
+              LOG.debug("Receiving value: {}", input);
               // TODO: Can this be called by multiple threads? Are calls guaranteed to at least be
               // serial? If not, these calls may need to be synchronized.
               // TODO: If this needs to be synchronized, consider requiring immutable maps.
@@ -146,7 +153,6 @@ public class FlinkExecutableStageFunction<InputT> extends
                 // always grab index 0.
                 // TODO: Plumb through TupleTag <-> Target mappings to get correct union tag here.
                 // For now, assume only one union tag.
-                int unionTag = Iterables.getOnlyElement(outputMap.values());
                 collector.collect(new RawUnionValue(unionTag, input));
               }
             }
@@ -162,7 +168,7 @@ public class FlinkExecutableStageFunction<InputT> extends
     SdkHarnessClient.ActiveBundle<InputT> bundle = processor.newBundle(receiverMap);
     try (CloseableFnDataReceiver<WindowedValue<InputT>> inputReceiver = bundle.getInputReceiver()) {
       for (WindowedValue<InputT> value : input) {
-        logger.finer(String.format("Sending value: %s", value));
+        LOG.debug("Sending value: {}", value);
         inputReceiver.accept(value);
       }
     }
