@@ -39,20 +39,19 @@ public class SingletonSdkHarnessManagerTest {
     when(
         jobResourceManagerFactory.create(
             jobInfo,
-            environment,
             artifactSource,
             serverFactory,
             executorService
         )
     ).thenReturn(jobResourceManager);
 
-    when(jobResourceManager.getSession()).thenReturn(environmentSession);
+    when(jobResourceManager.getSession(environment)).thenReturn(environmentSession);
   }
 
   @Test
   public void testGetSessionCallsJobResourceManager() throws Exception {
     EnvironmentSession session = manager.getSession(jobInfo, environment, artifactSource);
-    verify(jobResourceManager, times(1)).getSession();
+    verify(jobResourceManager, times(1)).getSession(environment);
     assertEquals(session, environmentSession);
   }
 
@@ -62,7 +61,6 @@ public class SingletonSdkHarnessManagerTest {
     EnvironmentSession session = manager.getSession(jobInfo, environment, artifactSource);
     verify(jobResourceManagerFactory, times(1)).create(
         jobInfo,
-        environment,
         artifactSource,
         serverFactory,
         executorService);
@@ -70,7 +68,6 @@ public class SingletonSdkHarnessManagerTest {
     session = manager.getSession(jobInfo, environment, artifactSource);
     verify(jobResourceManagerFactory, times(1)).create(
         jobInfo,
-        environment,
         artifactSource,
         serverFactory,
         executorService);

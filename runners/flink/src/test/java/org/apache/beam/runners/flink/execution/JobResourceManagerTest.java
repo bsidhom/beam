@@ -1,6 +1,5 @@
 package org.apache.beam.runners.flink.execution;
 
-import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.Mockito.when;
 
@@ -62,26 +61,14 @@ public class JobResourceManagerTest {
             .thenReturn(containerManager);
     when(containerManager.getEnvironment(environment)).thenReturn(remoteEnvironment);
 
-    manager = JobResourceManager.create(clientPool, jobInfo, environment, artifactSource,
+    manager = JobResourceManager.create(clientPool, jobInfo, artifactSource,
         jobResourceFactory);
   }
 
   @Test
-  public void testStartCreatesResources() throws Exception {
-    manager.start();
-    assertTrue(manager.isStarted());
-  }
-
-  @Test
-  public void testGetEnvironmentSucceedsIfStarted() throws Exception {
-    manager.start();
-    EnvironmentSession session = manager.getSession();
+  public void testGetEnvironmentSucceeds() throws Exception {
+    EnvironmentSession session = manager.getSession(environment);
     assertNotNull(session);
-  }
-
-  @Test(expected = IllegalStateException.class)
-  public void testGetEnvironmentFailsIfNotStarted() throws Exception {
-    manager.getSession();
   }
 
 }

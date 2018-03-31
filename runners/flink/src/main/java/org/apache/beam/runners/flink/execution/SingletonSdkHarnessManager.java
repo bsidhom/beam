@@ -25,6 +25,8 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.GuardedBy;
 import org.apache.beam.model.fnexecution.v1.ProvisionApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.runners.fnexecution.ServerFactory;
@@ -51,6 +53,11 @@ public class SingletonSdkHarnessManager implements  SdkHarnessManager {
   private final ExecutorService executorService;
   private final JobResourceManagerFactory jobResourceManagerFactory;
 
+  private final Object jobResourceManagerLock = new Object();
+  @GuardedBy("jobResourceManagerLock")
+  @Nullable
+  private JobResourceManager jobResourceManager;
+
   private static SingletonSdkHarnessManager create() {
     ThreadFactory threadFactory =
         new ThreadFactoryBuilder().setThreadFactory(MoreExecutors.platformThreadFactory())
@@ -76,23 +83,26 @@ public class SingletonSdkHarnessManager implements  SdkHarnessManager {
   }
 
   @Override
-  public synchronized EnvironmentSession getSession(
+  public EnvironmentSession getSession(
       ProvisionApi.ProvisionInfo jobInfo,
       RunnerApi.Environment environment,
       ArtifactSource artifactSource) throws Exception {
 
+    synchronized (jobResourceManagerLock) {
+      if (jobResourceManager == null) {
+        jobResourceManager =
+            jobResourceManagerFactory.create(
+                jobInfo,
+                artifactSource,
+                serverFactory,
+                executorService);
+      }
+    }
+
     // TODO: Don't spin up a docker container for every stage but
     // reuse one container per TaskManager/JVM.
-    JobResourceManager jobResourceManager =
-        jobResourceManagerFactory.create(
-            jobInfo,
-            environment,
-            artifactSource,
-            serverFactory,
-            executorService);
-    jobResourceManager.start();
-
-    return jobResourceManager.getSession();
+    // TODO: Ensure JobResourceManager is thread-safe.
+    return jobResourceManager.getSession(environment);
   }
 
   private static ServerFactory getServerFactory() {

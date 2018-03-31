@@ -1,6 +1,5 @@
 package org.apache.beam.runners.flink.execution;
 
-import javax.annotation.Nullable;
 import org.apache.beam.model.fnexecution.v1.ProvisionApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.runners.fnexecution.GrpcFnServer;
@@ -22,49 +21,43 @@ public class JobResourceManager implements AutoCloseable {
   public static JobResourceManager create(
       ControlClientPool controlClientPool,
       ProvisionApi.ProvisionInfo jobInfo,
-      RunnerApi.Environment environment,
       ArtifactSource artifactSource,
-      JobResourceFactory jobResourceFactory) {
-    return new JobResourceManager(
-        controlClientPool,
-        jobInfo,
-        environment,
-        artifactSource,
-        jobResourceFactory);
+      JobResourceFactory jobResourceFactory) throws Exception {
+    GrpcFnServer<FnApiControlClientPoolService> controlServer =
+        jobResourceFactory.controlService(controlClientPool.getSink());
+    EnvironmentManager environmentManager = jobResourceFactory.containerManager(
+        artifactSource, jobInfo, controlServer, controlClientPool.getSource());
+    GrpcFnServer<GrpcStateService> stateService = jobResourceFactory.stateService();
+    return new JobResourceManager(artifactSource, jobResourceFactory, environmentManager,
+        stateService, controlServer);
   }
 
   // job resources
-  private final ProvisionApi.ProvisionInfo jobInfo;
   private final ArtifactSource artifactSource;
-  private final RunnerApi.Environment environment;
   private final JobResourceFactory jobResourceFactory;
-  // Control client queue. Populated by a FnApiControlClientPoolService.
-  private final ControlClientPool controlClientPool;
 
   // environment resources (will eventually need to support multiple environments)
-  @Nullable private RemoteEnvironment remoteEnvironment = null;
-  @Nullable private EnvironmentManager containerManager = null;
-  @Nullable private GrpcFnServer<GrpcStateService> stateService = null;
-  @Nullable private GrpcFnServer<FnApiControlClientPoolService> controlServer = null;
+  private final EnvironmentManager environmentManager;
+  private final GrpcFnServer<GrpcStateService> stateService;
+  private final GrpcFnServer<FnApiControlClientPoolService> controlServer;
 
   private JobResourceManager (
-      ControlClientPool controlClientPool,
-      ProvisionApi.ProvisionInfo jobInfo,
-      RunnerApi.Environment environment,
       ArtifactSource artifactSource,
-      JobResourceFactory jobResourceFactory) {
-    this.controlClientPool = controlClientPool;
-    this.jobInfo = jobInfo;
-    this.environment = environment;
+      JobResourceFactory jobResourceFactory,
+      EnvironmentManager environmentManager,
+      GrpcFnServer<GrpcStateService> stateService,
+      GrpcFnServer<FnApiControlClientPoolService> controlServer) {
     this.artifactSource = artifactSource;
     this.jobResourceFactory = jobResourceFactory;
+    this.environmentManager = environmentManager;
+    this.stateService = stateService;
+    this.controlServer = controlServer;
   }
 
   /** Get a new environment session using the manager's resources. */
-  public EnvironmentSession getSession() throws Exception {
-    if (!isStarted()) {
-      throw new IllegalStateException("JobResourceManager has not been properly initialized.");
-    }
+  public EnvironmentSession getSession(RunnerApi.Environment environment) throws Exception {
+    // TODO: Decide who is responsible for service lifecycles.
+    RemoteEnvironment remoteEnvironment = environmentManager.getEnvironment(environment);
     return JobResourceEnvironmentSession.create(
         jobResourceFactory::dataService,
         remoteEnvironment.getEnvironment(),
@@ -72,30 +65,6 @@ public class JobResourceManager implements AutoCloseable {
         artifactSource,
         stateService.getService(),
         stateService.getApiServiceDescriptor());
-  }
-
-  /**
-   * Start all JobResourceManager resources that have a lifecycle, such as gRPC services and remote
-   * environments.
-   * @throws Exception
-   */
-  public void start() throws Exception {
-    controlServer = jobResourceFactory.controlService(controlClientPool.getSink());
-    stateService = jobResourceFactory.stateService();
-    containerManager =
-        jobResourceFactory.containerManager(artifactSource, jobInfo,
-            controlServer,
-            controlClientPool.getSource());
-    remoteEnvironment = containerManager.getEnvironment(environment);
-  }
-
-  /**
-   * Check if job resources have been successfully started and set.
-   * @return true if all resources are started.
-   */
-  public boolean isStarted() {
-    return containerManager != null
-        && remoteEnvironment != null;
   }
 
   @Override
