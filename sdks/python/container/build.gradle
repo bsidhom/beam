@@ -43,9 +43,11 @@ dependencies {
 }
 
 task copyDockerfileDependencies(type: Copy) {
-  from configurations.dockerDependency
+  //from configurations.dockerDependency
+  from "../dist"
   rename "apache-beam.*\\.tar.gz", "apache-beam.tar.gz"
   into "build/target"
+  inputs.sourceFiles.stopExecutionIfEmpty()
 }
 
 golang {
