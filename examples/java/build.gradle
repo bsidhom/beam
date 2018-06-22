@@ -35,6 +35,9 @@ def preCommitRunners = ["directRunner", "flinkRunner", "sparkRunner"]
 for (String runner : preCommitRunners) {
   configurations.create(runner + "PreCommit")
 }
+configurations {
+  portableRunner
+}
 configurations.sparkRunnerPreCommit {
   // Ban certain dependencies to prevent a StackOverflow within Spark
   // because JUL -> SLF4J -> JUL, and similarly JDK14 -> SLF4J -> JDK14
@@ -84,6 +87,8 @@ dependencies {
   sparkRunnerPreCommit project(path: ":beam-sdks-java-io-hadoop-file-system", configuration: "shadow")
   sparkRunnerPreCommit library.java.spark_streaming
   sparkRunnerPreCommit library.java.spark_core
+  portableRunner project(path: project.path, configuration: "shadow")
+  portableRunner project(path: ":beam-runners-reference-java", configuration: "shadow")
 }
 
 /*
@@ -126,3 +131,9 @@ task preCommit() {
   dependsOn ":runners:google-cloud-dataflow-java:examples-streaming:preCommit"
 }
 
+task runWordCount(type: JavaExec) {
+  main = "org.apache.beam.examples.WordCount"
+  // classpath = sourceSets.main.runtimeClasspath
+  classpath = configurations.portableRunner
+  args = ["--runner=PortableRunner", "--jobEndpoint=127.0.0.1:8099", "--output=gs://sidhom-scratch-us-east1/flink-portable/output"]
+}
