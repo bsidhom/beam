@@ -117,6 +117,7 @@ public class DockerJobBundleFactory implements JobBundleFactory {
             provisioningServer,
             clientPool.getSource(),
             workerTempPath,
+            ImmutableMap.of(),
             IdGenerators.incrementingLongs());
     return new DockerJobBundleFactory(
         environmentFactory,

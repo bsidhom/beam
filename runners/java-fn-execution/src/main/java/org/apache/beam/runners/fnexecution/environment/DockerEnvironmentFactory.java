@@ -17,16 +17,18 @@
  */
 package org.apache.beam.runners.fnexecution.environment;
 
-import static com.google.common.base.MoreObjects.firstNonNull;
+import static com.google.common.base.Preconditions.checkArgument;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.io.BaseEncoding;
+import java.io.IOException;
+import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
 import org.apache.beam.runners.fnexecution.GrpcFnServer;
@@ -37,6 +39,8 @@ import org.apache.beam.runners.fnexecution.control.InstructionRequestHandler;
 import org.apache.beam.runners.fnexecution.logging.GrpcLoggingService;
 import org.apache.beam.runners.fnexecution.provisioning.StaticGrpcProvisionService;
 import org.apache.beam.sdk.fn.IdGenerator;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVPrinter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,9 +53,14 @@ public class DockerEnvironmentFactory implements EnvironmentFactory {
 
   private static final Logger LOG = LoggerFactory.getLogger(DockerEnvironmentFactory.class);
 
+  private static final String SEMI_PERSISTENT_DIRECTORY =
+      "/var/opt/apache/beam/semi_persistent_dir";
+
   /**
    * Returns a {@link DockerEnvironmentFactory} for the provided {@link GrpcFnServer servers} using
    * the default {@link DockerCommand}.
+   *
+   * <p>Additional mount points are provided as a map from Docker mount point to host path.
    */
   public static DockerEnvironmentFactory forServices(
       GrpcFnServer<FnApiControlClientPoolService> controlServiceServer,
@@ -60,6 +69,7 @@ public class DockerEnvironmentFactory implements EnvironmentFactory {
       GrpcFnServer<StaticGrpcProvisionService> provisioningServiceServer,
       ControlClientPool.Source clientSource,
       Path workerTempDir,
+      Map<String, String> additionalMounts,
       IdGenerator idGenerator) {
     return forServicesWithDocker(
         DockerCommand.getDefault(),
@@ -69,6 +79,7 @@ public class DockerEnvironmentFactory implements EnvironmentFactory {
         provisioningServiceServer,
         clientSource,
         workerTempDir,
+        additionalMounts,
         idGenerator);
   }
 
@@ -80,7 +91,13 @@ public class DockerEnvironmentFactory implements EnvironmentFactory {
       GrpcFnServer<StaticGrpcProvisionService> provisioningServiceServer,
       ControlClientPool.Source clientSource,
       Path workerTempDir,
+      Map<String, String> additionalMounts,
       IdGenerator idGenerator) {
+    checkArgument(
+        !additionalMounts.containsKey(SEMI_PERSISTENT_DIRECTORY),
+        "The semi-persistent directory '%s' is reserved for %s and should not be manually mounted",
+        SEMI_PERSISTENT_DIRECTORY,
+        DockerEnvironmentFactory.class.getSimpleName());
     return new DockerEnvironmentFactory(
         docker,
         controlServiceServer,
@@ -89,6 +106,7 @@ public class DockerEnvironmentFactory implements EnvironmentFactory {
         provisioningServiceServer,
         clientSource,
         workerTempDir,
+        additionalMounts,
         idGenerator);
   }
 
@@ -99,6 +117,7 @@ public class DockerEnvironmentFactory implements EnvironmentFactory {
   private final GrpcFnServer<StaticGrpcProvisionService> provisioningServiceServer;
   private final ControlClientPool.Source clientSource;
   private final Path workerTempDir;
+  private final Map<String, String> additionalMounts;
   private final IdGenerator idGenerator;
 
   private DockerEnvironmentFactory(
@@ -109,6 +128,7 @@ public class DockerEnvironmentFactory implements EnvironmentFactory {
       GrpcFnServer<StaticGrpcProvisionService> provisioningServiceServer,
       ControlClientPool.Source clientSource,
       Path workerTempDir,
+      Map<String, String> additionalMounts,
       IdGenerator idGenerator) {
     this.docker = docker;
     this.controlServiceServer = controlServiceServer;
@@ -117,6 +137,7 @@ public class DockerEnvironmentFactory implements EnvironmentFactory {
     this.provisioningServiceServer = provisioningServiceServer;
     this.clientSource = clientSource;
     this.workerTempDir = workerTempDir;
+    this.additionalMounts = ImmutableMap.copyOf(additionalMounts);
     this.idGenerator = idGenerator;
   }
 
@@ -126,10 +147,6 @@ public class DockerEnvironmentFactory implements EnvironmentFactory {
     String workerId = idGenerator.getId();
 
     // Prepare docker invocation.
-    String pathSafeWorkerId =
-        BaseEncoding.base64Url().encode(workerId.getBytes(StandardCharsets.UTF_8));
-    Path workerPersistentDirectory = workerTempDir.resolve(pathSafeWorkerId);
-    String semiPersistentDirectory = "/var/opt/apache/beam/semi_persistent_dir";
     String containerImage = environment.getUrl();
     String loggingEndpoint = loggingServiceServer.getApiServiceDescriptor().getUrl();
     String artifactEndpoint = retrievalServiceServer.getApiServiceDescriptor().getUrl();
@@ -138,12 +155,7 @@ public class DockerEnvironmentFactory implements EnvironmentFactory {
 
     List<String> volArg =
         ImmutableList.<String>builder()
-            .addAll(gcsCredentialArgs())
-            .add(
-                "--mount",
-                String.format(
-                    "type=bind,source=%s,dst=%s",
-                    workerPersistentDirectory, semiPersistentDirectory))
+            .addAll(getMountArgs(workerId, additionalMounts))
             // NOTE: Host networking does not work on Mac, but the command line flag is accepted.
             .add("--network=host")
             .build();
@@ -192,19 +204,33 @@ public class DockerEnvironmentFactory implements EnvironmentFactory {
     return DockerContainerEnvironment.create(docker, environment, containerId, instructionHandler);
   }
 
-  private List<String> gcsCredentialArgs() {
-    String dockerGcloudConfig = "/root/.config/gcloud";
-    String localGcloudConfig =
-        firstNonNull(
-            System.getenv("CLOUDSDK_CONFIG"),
-            Paths.get(System.getProperty("user.home"), ".config", "gcloud").toString());
-    // TODO(BEAM-4729): Allow this to be disabled manually.
-    if (Files.exists(Paths.get(localGcloudConfig))) {
-      return ImmutableList.of(
-          "--mount",
-          String.format("type=bind,src=%s,dst=%s", localGcloudConfig, dockerGcloudConfig));
-    } else {
-      return ImmutableList.of();
+  private List<String> getMountArgs(String workerId, Map<String, String> mounts) {
+    ImmutableList.Builder<String> builder = ImmutableList.builder();
+
+    String pathSafeWorkerId =
+        BaseEncoding.base64Url().encode(workerId.getBytes(StandardCharsets.UTF_8));
+    Path workerPersistentDirectory = workerTempDir.resolve(pathSafeWorkerId);
+    builder
+        .add("--mount")
+        .add(escapeMountArgs(workerPersistentDirectory.toString(), SEMI_PERSISTENT_DIRECTORY));
+
+    for (Map.Entry<String, String> mount : mounts.entrySet()) {
+      builder.add("--mount").add(escapeMountArgs(mount.getValue(), mount.getKey()));
     }
+    return builder.build();
+  }
+
+  private static String escapeMountArgs(String src, String dst) {
+    StringWriter output = new StringWriter();
+    try {
+      CSVPrinter printer = CSVFormat.RFC4180.print(output);
+      printer.printRecord("type=bind", "src=" + src, "dst=" + dst);
+      printer.close();
+    } catch (IOException e) {
+      // This should never happen.
+      throw new RuntimeException(e);
+    }
+    // Remove newline/carriage return.
+    return output.toString().trim();
   }
 }

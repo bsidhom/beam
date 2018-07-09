@@ -25,6 +25,7 @@ import static org.apache.beam.runners.core.construction.SyntheticComponents.uniq
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -249,6 +250,7 @@ public class ReferenceRunner {
             controlClientSource,
             // TODO: Clean up at the appropriate time.
             Files.createTempDirectory(Paths.get("/tmp"), "worker_persistent_dir"),
+            ImmutableMap.of(),
             IdGenerators.incrementingLongs());
       case IN_PROCESS:
         return InProcessEnvironmentFactory.create(
