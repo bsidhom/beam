@@ -101,12 +101,6 @@ public class CloseableResource<T> implements AutoCloseable {
     }
   }
 
-  /** A function that knows how to clean up after a resource. */
-  @FunctionalInterface
-  public interface Closer<T> {
-    void close(T resource) throws Exception;
-  }
-
   /** An exception that wraps errors thrown while a resource is being closed. */
   public static class CloseException extends Exception {
     private CloseException(Exception e) {
