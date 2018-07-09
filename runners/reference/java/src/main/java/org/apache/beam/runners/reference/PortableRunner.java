@@ -42,7 +42,6 @@ import org.apache.beam.runners.core.construction.ArtifactServiceStager.StagedFil
 import org.apache.beam.runners.core.construction.JavaReadViaImpulse;
 import org.apache.beam.runners.core.construction.PipelineOptionsTranslation;
 import org.apache.beam.runners.core.construction.PipelineTranslation;
-import org.apache.beam.runners.reference.CloseableResource.CloseException;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.PipelineRunner;
@@ -50,6 +49,8 @@ import org.apache.beam.sdk.fn.channel.ManagedChannelFactory;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsValidator;
 import org.apache.beam.sdk.options.PortablePipelineOptions;
+import org.apache.beam.sdk.resource.CloseableResource;
+import org.apache.beam.sdk.resource.CloseableResource.CloseException;
 import org.apache.beam.sdk.util.ZipFiles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
