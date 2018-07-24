@@ -27,7 +27,6 @@ import java.lang.reflect.Proxy;
 import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.ThreadSafe;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineRunner;
@@ -203,19 +202,7 @@ import org.joda.time.format.DateTimeFormatter;
 @JsonSerialize(using = Serializer.class)
 @JsonDeserialize(using = Deserializer.class)
 @ThreadSafe
-public interface PipelineOptions extends HasDisplayData {
-  /**
-   * Transforms this object into an object of type {@code <T>} saving each property that has been
-   * manipulated. {@code <T>} must extend {@link PipelineOptions}.
-   *
-   * <p>If {@code <T>} is not registered with the {@link PipelineOptionsFactory}, then we attempt to
-   * verify that {@code <T>} is composable with every interface that this instance of the {@code
-   * PipelineOptions} has seen.
-   *
-   * @param kls The class of the type to transform to.
-   * @return An object of type kls.
-   */
-  <T extends PipelineOptions> T as(Class<T> kls);
+public interface PipelineOptions extends Options, HasDisplayData {
 
   /**
    * The pipeline runner that will be used to execute the pipeline. For registered runners, the
@@ -248,7 +235,6 @@ public interface PipelineOptions extends HasDisplayData {
           + "support updating of pipelines.")
   @Default.Enum("WARNING")
   CheckEnabled getStableUniqueNames();
-
   void setStableUniqueNames(CheckEnabled enabled);
 
   /**
@@ -285,7 +271,7 @@ public interface PipelineOptions extends HasDisplayData {
    */
   class DirectRunner implements DefaultValueFactory<Class<? extends PipelineRunner<?>>> {
     @Override
-    public Class<? extends PipelineRunner<?>> create(PipelineOptions options) {
+    public Class<? extends PipelineRunner<?>> create(Options options) {
       try {
         @SuppressWarnings({"unchecked", "rawtypes"})
         Class<? extends PipelineRunner<?>> direct =
@@ -319,7 +305,7 @@ public interface PipelineOptions extends HasDisplayData {
         DateTimeFormat.forPattern("MMddHHmmss").withZone(DateTimeZone.UTC);
 
     @Override
-    public String create(PipelineOptions options) {
+    public String create(Options options) {
       String appName = options.as(ApplicationNameOptions.class).getAppName();
       String normalizedAppName =
           appName == null || appName.length() == 0
@@ -332,35 +318,6 @@ public interface PipelineOptions extends HasDisplayData {
       String randomPart = Integer.toHexString(ThreadLocalRandom.current().nextInt());
       return String.format(
           "%s-%s-%s-%s", normalizedAppName, normalizedUserName, datePart, randomPart);
-    }
-  }
-
-  /**
-   * Returns a map of properties which correspond to {@link ValueProvider.RuntimeValueProvider},
-   * keyed by the property name. The value is a map containing type and default information.
-   */
-  Map<String, Map<String, Object>> outputRuntimeOptions();
-
-  /**
-   * Provides a process wide unique ID for this {@link PipelineOptions} object, assigned at graph
-   * construction time.
-   */
-  @Hidden
-  @Default.InstanceFactory(AtomicLongFactory.class)
-  long getOptionsId();
-
-  void setOptionsId(long id);
-
-  /**
-   * {@link DefaultValueFactory} which supplies an ID that is guaranteed to be unique within the
-   * given process.
-   */
-  class AtomicLongFactory implements DefaultValueFactory<Long> {
-    private static final AtomicLong NEXT_ID = new AtomicLong(0);
-
-    @Override
-    public Long create(PipelineOptions options) {
-      return NEXT_ID.getAndIncrement();
     }
   }
 
@@ -397,7 +354,7 @@ public interface PipelineOptions extends HasDisplayData {
    */
   class UserAgentFactory implements DefaultValueFactory<String> {
     @Override
-    public String create(PipelineOptions options) {
+    public String create(Options options) {
       ReleaseInfo info = ReleaseInfo.getReleaseInfo();
       return String.format("%s/%s", info.getName(), info.getVersion()).replace(" ", "_");
     }
@@ -418,7 +375,7 @@ public interface PipelineOptions extends HasDisplayData {
    */
   class NoOpMetricsSink implements DefaultValueFactory<Class<? extends MetricsSink>> {
     @Override
-    public Class<? extends MetricsSink> create(PipelineOptions options) {
+    public Class<? extends MetricsSink> create(Options options) {
       try {
         @SuppressWarnings({"unchecked", "rawtypes"})
         Class<? extends MetricsSink> noOpMetricsSinkClass =

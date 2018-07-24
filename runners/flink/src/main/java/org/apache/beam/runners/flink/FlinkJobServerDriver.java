@@ -31,9 +31,7 @@ import org.apache.beam.runners.fnexecution.jobsubmission.InMemoryJobService;
 import org.apache.beam.runners.fnexecution.jobsubmission.JobInvoker;
 import org.apache.beam.sdk.io.FileSystems;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
-import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
-import org.kohsuke.args4j.Option;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,34 +41,14 @@ public class FlinkJobServerDriver implements Runnable {
   private static final Logger LOG = LoggerFactory.getLogger(FlinkJobServerDriver.class);
 
   private final ListeningExecutorService executor;
-  private final ServerConfiguration configuration;
+  private final FlinkDriverOptions runnerOptions;
   private final ServerFactory serverFactory;
 
-  private static class ServerConfiguration {
-    @Option(name = "--job-host", required = true, usage = "The job server host string")
-    private String host = "";
-
-    @Option(name = "--artifacts-dir", usage = "The location to store staged artifact files")
-    private String artifactStagingPath = "/tmp/beam-artifact-staging";
-
-    @Option(name = "--flink-master-url", usage = "Flink master url to submit job.")
-    private String flinkMasterUrl = "[auto]";
-  }
-
   public static void main(String[] args) throws IOException {
-    ServerConfiguration configuration = new ServerConfiguration();
-    CmdLineParser parser = new CmdLineParser(configuration);
-    try {
-      parser.parseArgument(args);
-    } catch (CmdLineException e) {
-      LOG.error("Unable to parse command line arguments.", e);
-      printUsage(parser);
-      return;
-    }
-    //TODO: Expose the fileSystem related options.
-    // Register standard file systems.
-    FileSystems.setDefaultPipelineOptions(PipelineOptionsFactory.create());
-    FlinkJobServerDriver driver = fromConfig(configuration);
+    FlinkDriverOptions runnerOptions =
+        PipelineOptionsFactory.fromArgs(args).withValidation().as(FlinkDriverOptions.class);
+    FileSystems.setDefaultPipelineOptions(runnerOptions);
+    FlinkJobServerDriver driver = fromConfig(runnerOptions);
     driver.run();
   }
 
@@ -81,27 +59,27 @@ public class FlinkJobServerDriver implements Runnable {
     System.err.println();
   }
 
-  public static FlinkJobServerDriver fromConfig(ServerConfiguration configuration) {
+  public static FlinkJobServerDriver fromConfig(FlinkDriverOptions runnerOptions) {
     ThreadFactory threadFactory =
         new ThreadFactoryBuilder().setNameFormat("flink-runner-job-server").setDaemon(true).build();
     ListeningExecutorService executor =
         MoreExecutors.listeningDecorator(Executors.newCachedThreadPool(threadFactory));
     ServerFactory serverFactory = ServerFactory.createDefault();
-    return create(configuration, executor, serverFactory);
+    return create(runnerOptions, executor, serverFactory);
   }
 
   public static FlinkJobServerDriver create(
-      ServerConfiguration configuration,
+      FlinkDriverOptions runnerOptions,
       ListeningExecutorService executor,
       ServerFactory serverFactory) {
-    return new FlinkJobServerDriver(configuration, executor, serverFactory);
+    return new FlinkJobServerDriver(runnerOptions, executor, serverFactory);
   }
 
   private FlinkJobServerDriver(
-      ServerConfiguration configuration,
+      FlinkDriverOptions runnerOptions,
       ListeningExecutorService executor,
       ServerFactory serverFactory) {
-    this.configuration = configuration;
+    this.runnerOptions = runnerOptions;
     this.executor = executor;
     this.serverFactory = serverFactory;
   }
@@ -121,7 +99,7 @@ public class FlinkJobServerDriver implements Runnable {
   private GrpcFnServer<InMemoryJobService> createJobServer() throws IOException {
     InMemoryJobService service = createJobService();
     Endpoints.ApiServiceDescriptor descriptor =
-        Endpoints.ApiServiceDescriptor.newBuilder().setUrl(configuration.host).build();
+        Endpoints.ApiServiceDescriptor.newBuilder().setUrl(runnerOptions.getJobHost()).build();
     return GrpcFnServer.create(service, descriptor, serverFactory);
   }
 
@@ -134,7 +112,7 @@ public class FlinkJobServerDriver implements Runnable {
         (String session) -> {
           try {
             return BeamFileSystemArtifactStagingService.generateStagingSessionToken(
-                session, configuration.artifactStagingPath);
+                session, runnerOptions.getArtifactsDir());
           } catch (Exception exn) {
             throw new RuntimeException(exn);
           }
@@ -149,6 +127,6 @@ public class FlinkJobServerDriver implements Runnable {
   }
 
   private JobInvoker createJobInvoker() throws IOException {
-    return FlinkJobInvoker.create(executor, configuration.flinkMasterUrl);
+    return FlinkJobInvoker.create(executor, runnerOptions.getFlinkMasterUrl());
   }
 }

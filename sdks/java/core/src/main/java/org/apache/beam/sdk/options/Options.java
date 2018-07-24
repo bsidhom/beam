@@ -1,0 +1,235 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.apache.beam.sdk.options;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.google.auto.service.AutoService;
+import java.lang.reflect.Proxy;
+import java.util.Map;
+import java.util.ServiceLoader;
+import java.util.concurrent.atomic.AtomicLong;
+import javax.annotation.concurrent.ThreadSafe;
+import org.apache.beam.sdk.Pipeline;
+import org.apache.beam.sdk.PipelineRunner;
+import org.apache.beam.sdk.options.ProxyInvocationHandler.Deserializer;
+import org.apache.beam.sdk.options.ProxyInvocationHandler.Serializer;
+import org.apache.beam.sdk.transforms.DoFn;
+import org.apache.beam.sdk.transforms.display.HasDisplayData;
+
+/**
+ * Options are used to configure Pipelines. You can extend {@link Options} to create
+ * custom configuration options.
+ *
+ * <p>{@link Options} and their subinterfaces represent a collection of properties which can
+ * be manipulated in a type safe manner. {@link Options} is backed by a dynamic {@link
+ * Proxy} which allows for type safe manipulation of properties in an extensible fashion through
+ * plain old Java interfaces.
+ *
+ * <p>{@link Options} can be created with {@link OptionsFactory#create()} and {@link
+ * OptionsFactory#as(Class)}. They can be created from command-line arguments with {@link
+ * OptionsFactory#fromArgs(String[])}. They can be converted to another type by invoking
+ * {@link Options#as(Class)}.
+ *
+ * <p>For example:
+ *
+ * <pre>{@code
+ * // The most common way to construct Options is via command-line argument parsing:
+ * public static void main(String[] args) {
+ *   // Will parse the arguments passed into the application and construct a Options
+ *   // Note that --help will print registered options, and --help=OptionsClassName
+ *   // will print out usage for the specific class.
+ *   Options options =
+ *       OptionsFactory.fromArgs(args).create();
+*    ...
+ * }
+ *
+ * // To create options for the DirectRunner:
+ * DirectOptions directRunnerOptions =
+ *     OptionsFactory.as(DirectOptions.class);
+ *
+ * // To cast from one type to another using the as(Class) method:
+ * ApplicationNameOptions applicationNameOptions =
+ *     directOptions.as(ApplicationNameOptions.class);
+ *
+ * // Options for the same property are shared between types
+ * // The statement below will print out the name of the enclosing class by default
+ * System.out.println(applicationNameOptions.getApplicationName());
+ *
+ * // Prints out registered options.
+ * OptionsFactory.printHelp(System.out);
+ *
+ * // Prints out options which are available to be set on ApplicationNameOptions
+ * OptionsFactory.printHelp(System.out, ApplicationNameOptions.class);
+ * }</pre>
+ *
+ * <h2>Defining Your Own Options</h2>
+ *
+ * <p>Defining your own {@link Options} is the way for you to make configuration options
+ * available for both local execution and execution via a {@link PipelineRunner}. By having
+ * OptionsFactory as your command-line interpreter, you will provide a standardized way for
+ * users to interact with your application via the command-line.
+ *
+ * <p>To define your own {@link Options}, you create an interface which extends {@link
+ * Options} and define getter/setter pairs. These getter/setter pairs define a collection of
+ * <a href="https://docs.oracle.com/javase/tutorial/javabeans/writing/properties.html">JavaBean
+ * properties</a>.
+ *
+ * <p>For example:
+ *
+ * <pre>{@code
+ * // Creates a user defined property called "myProperty"
+ * public interface MyOptions extends Options {
+ *   String getMyProperty();
+ *   void setMyProperty(String value);
+ * }
+ * }</pre>
+ *
+ * <p>Note: Please see the section on Registration below when using custom property types.
+ *
+ * <h3>Restrictions</h3>
+ *
+ * <p>Since Options can be "cast" to multiple types dynamically using {@link
+ * Options#as(Class)}, a property must conform to the following set of restrictions:
+ *
+ * <ul>
+ *   <li>Any property with the same name must have the same return type for all derived interfaces
+ *       of {@link Options}.
+ *   <li>Every bean property of any interface derived from {@link Options} must have a
+ *       getter and setter method.
+ *   <li>Every method must conform to being a getter or setter for a JavaBean.
+ *   <li>The derived interface of {@link Options} must be composable with every interface
+ *       part registered with the OptionsFactory.
+ *   <li>Only getters may be annotated with {@link JsonIgnore @JsonIgnore}.
+ *   <li>If any getter is annotated with {@link JsonIgnore @JsonIgnore}, then all getters for this
+ *       property must be annotated with {@link JsonIgnore @JsonIgnore}.
+ * </ul>
+ *
+ * <h3>Annotations For Options</h3>
+ *
+ * <p>{@link Description @Description} can be used to annotate an interface or a getter with useful
+ * information which is output when {@code --help} is invoked via {@link
+ * OptionsFactory#fromArgs(String[])}.
+ *
+ * <p>{@link Default @Default} represents a set of annotations that can be used to annotate getter
+ * properties on {@link Options} with information representing the default value to be
+ * returned if no value is specified. Any default implementation (using the {@code default} keyword)
+ * is ignored.
+ *
+ * <p>{@link Hidden @Hidden} hides an option from being listed when {@code --help} is invoked via
+ * {@link OptionsFactory#fromArgs(String[])}.
+ *
+ * <p>{@link Validation @Validation} represents a set of annotations that can be used to annotate
+ * getter properties on {@link Options} with information representing the validation
+ * criteria to be used when validating with the {@link OptionsValidator}. Validation will be
+ * performed if during construction of the {@link Options}, {@link
+ * OptionsFactory#withValidation()} is invoked.
+ *
+ * <p>{@link JsonIgnore @JsonIgnore} is used to prevent a property from being serialized and
+ * available during execution of {@link DoFn}. See the Serialization section below for more details.
+ *
+ * <h2>Registration Of Options</h2>
+ *
+ * <p>Registration of {@link Options} by an application guarantees that the {@link
+ * Options} is composable during execution of their {@link Pipeline} and meets the
+ * restrictions listed above or will fail during registration. Registration also lists the
+ * registered {@link Options} when {@code --help} is invoked via {@link
+ * OptionsFactory#fromArgs(String[])}.
+ *
+ * <p>Registration can be performed by invoking {@link OptionsFactory#register} within a
+ * users application or via automatic registration by creating a {@link ServiceLoader} entry and a
+ * concrete implementation of the {@link OptionsRegistrar} interface.
+ *
+ * <p>It is optional but recommended to use one of the many build time tools such as {@link
+ * AutoService} to generate the necessary META-INF files automatically.
+ *
+ * <p>A list of registered options can be fetched from {@link
+ * OptionsFactory#getRegisteredOptions()}.
+ *
+ * <h2>Serialization Of Options</h2>
+ *
+ * {@link Options} is intentionally <i>not</i> marked {@link java.io.Serializable}, in order
+ * to discourage pipeline authors from capturing {@link Options} at pipeline construction
+ * time, because a pipeline may be saved as a template and run with a different set of options than
+ * the ones it was constructed with. See {@link Pipeline#run(PipelineOptions)}.
+ *
+ * <p>However, {@link PipelineRunner}s require support for options to be serialized. Each property
+ * within {@link Options} must be able to be serialized using Jackson's {@link ObjectMapper}
+ * or the getter method for the property annotated with {@link JsonIgnore @JsonIgnore}.
+ *
+ * <p>Jackson supports serialization of many types and supports a useful set of <a
+ * href="https://github.com/FasterXML/jackson-annotations">annotations</a> to aid in serialization
+ * of custom types. We point you to the public <a
+ * href="https://github.com/FasterXML/jackson">Jackson documentation</a> when attempting to add
+ * serialization support for your custom types. Note that {@link Options} relies on
+ * Jackson's ability to automatically configure the {@link ObjectMapper} with additional modules via
+ * {@link ObjectMapper#findModules()}.
+ *
+ * <p>Note: It is an error to have the same property available in multiple interfaces with only some
+ * of them being annotated with {@link JsonIgnore @JsonIgnore}. It is also an error to mark a setter
+ * for a property with {@link JsonIgnore @JsonIgnore}.
+ */
+@JsonSerialize(using = Serializer.class)
+@JsonDeserialize(using = Deserializer.class)
+@ThreadSafe
+public interface Options extends HasDisplayData {
+  /**
+   * Transforms this object into an object of type {@code <T>} saving each property that has been
+   * manipulated. {@code <T>} must extend {@link Options}.
+   *
+   * <p>If {@code <T>} is not registered with the {@link OptionsFactory}, then we attempt to
+   * verify that {@code <T>} is composable with every interface that this instance of the {@code
+   * Options} has seen.
+   *
+   * @param kls The class of the type to transform to.
+   * @return An object of type kls.
+   */
+  <T extends Options> T as(Class<T> kls);
+
+  /**
+   * Returns a map of properties which correspond to {@link ValueProvider.RuntimeValueProvider},
+   * keyed by the property name. The value is a map containing type and default information.
+   */
+  Map<String, Map<String, Object>> outputRuntimeOptions();
+
+  /**
+   * Provides a process wide unique ID for this {@link Options} object, assigned at graph
+   * construction time.
+   */
+  @Hidden
+  @Default.InstanceFactory(AtomicLongFactory.class)
+  long getOptionsId();
+
+  void setOptionsId(long id);
+
+  /**
+   * {@link DefaultValueFactory} which supplies an ID that is guaranteed to be unique within the
+   * given process.
+   */
+  class AtomicLongFactory implements DefaultValueFactory<Long> {
+    private static final AtomicLong NEXT_ID = new AtomicLong(0);
+
+    @Override
+    public Long create(Options options) {
+      return NEXT_ID.getAndIncrement();
+    }
+  }
+
+}
