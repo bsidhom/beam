@@ -25,8 +25,8 @@ import java.lang.annotation.Target;
 
 /**
  * {@link Default} represents a set of annotations that can be used to annotate getter properties on
- * {@link Options} with information representing the default value to be returned if no
- * value is specified.
+ * {@link Options} with information representing the default value to be returned if no value is
+ * specified.
  */
 public @interface Default {
   /**

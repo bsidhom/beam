@@ -89,19 +89,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Constructs a {@link Options} or any derived interface that is composable to any other
- * derived interface of {@link Options} via the {@link Options#as} method. Being
- * able to compose one derived interface of {@link Options} to another has the following
- * restrictions:
+ * Constructs a {@link Options} or any derived interface that is composable to any other derived
+ * interface of {@link Options} via the {@link Options#as} method. Being able to compose one derived
+ * interface of {@link Options} to another has the following restrictions:
  *
  * <ul>
  *   <li>Any property with the same name must have the same return type for all derived interfaces
  *       of {@link Options}.
- *   <li>Every bean property of any interface derived from {@link Options} must have a
- *       getter and setter method.
+ *   <li>Every bean property of any interface derived from {@link Options} must have a getter and
+ *       setter method.
  *   <li>Every method must conform to being a getter or setter for a JavaBean.
- *   <li>The derived interface of {@link Options} must be composable with every interface
- *       registered with this factory.
+ *   <li>The derived interface of {@link Options} must be composable with every interface registered
+ *       with this factory.
  * </ul>
  *
  * <p>See the <a
@@ -161,11 +160,10 @@ public class OptionsFactory {
    *
    * <p>Help information can be output to {@link System#out} by specifying {@code --help} as an
    * argument. After help is printed, the application will exit. Specifying only {@code --help} will
-   * print out the list of {@link OptionsFactory#getRegisteredOptions() registered options}
-   * by invoking {@link OptionsFactory#printHelp(PrintStream)}. Specifying {@code
-   * --help=OptionsClassName} will print out detailed usage information about the
-   * specifically requested Options by invoking {@link
-   * OptionsFactory#printHelp(PrintStream, Class)}.
+   * print out the list of {@link OptionsFactory#getRegisteredOptions() registered options} by
+   * invoking {@link OptionsFactory#printHelp(PrintStream)}. Specifying {@code
+   * --help=OptionsClassName} will print out detailed usage information about the specifically
+   * requested Options by invoking {@link OptionsFactory#printHelp(PrintStream, Class)}.
    */
   public static Builder fromArgs(String... args) {
     return new Builder().fromArgs(args);
@@ -173,8 +171,7 @@ public class OptionsFactory {
 
   /**
    * After creation we will validate that {@code <T>} conforms to all the validation criteria. See
-   * {@link OptionsValidator#validate(Class, Options)} for more details about
-   * validation.
+   * {@link OptionsValidator#validate(Class, Options)} for more details about validation.
    */
   public Builder withValidation() {
     return new Builder().withValidation();
@@ -232,11 +229,10 @@ public class OptionsFactory {
      *
      * <p>Help information can be output to {@link System#out} by specifying {@code --help} as an
      * argument. After help is printed, the application will exit. Specifying only {@code --help}
-     * will print out the list of {@link OptionsFactory#getRegisteredOptions() registered
-     * options} by invoking {@link OptionsFactory#printHelp(PrintStream)}. Specifying {@code
-     * --help=OptionsClassName} will print out detailed usage information about the
-     * specifically requested Options by invoking {@link
-     * OptionsFactory#printHelp(PrintStream, Class)}.
+     * will print out the list of {@link OptionsFactory#getRegisteredOptions() registered options}
+     * by invoking {@link OptionsFactory#printHelp(PrintStream)}. Specifying {@code
+     * --help=OptionsClassName} will print out detailed usage information about the specifically
+     * requested Options by invoking {@link OptionsFactory#printHelp(PrintStream, Class)}.
      */
     public Builder fromArgs(String... args) {
       checkNotNull(args, "Arguments should not be null.");
@@ -244,9 +240,9 @@ public class OptionsFactory {
     }
 
     /**
-     * After creation we will validate that {@link Options} conforms to all the validation
-     * criteria from {@code <T>}. See {@link OptionsValidator#validate(Class,
-     * Options)} for more details about validation.
+     * After creation we will validate that {@link Options} conforms to all the validation criteria
+     * from {@code <T>}. See {@link OptionsValidator#validate(Class, Options)} for more details
+     * about validation.
      */
     public Builder withValidation() {
       return new Builder(args, true, strictParsing, isCli);
@@ -261,8 +257,8 @@ public class OptionsFactory {
     }
 
     /**
-     * Creates and returns an object that implements {@link Options} using the values
-     * configured on this builder during construction.
+     * Creates and returns an object that implements {@link Options} using the values configured on
+     * this builder during construction.
      *
      * @return An object that implements {@link Options}.
      */
@@ -317,9 +313,8 @@ public class OptionsFactory {
 
   /**
    * Determines whether the generic {@code --help} was requested or help was requested for a
-   * specific class and invokes the appropriate {@link
-   * OptionsFactory#printHelp(PrintStream)} and {@link
-   * OptionsFactory#printHelp(PrintStream, Class)} variant. Prints to the specified {@link
+   * specific class and invokes the appropriate {@link OptionsFactory#printHelp(PrintStream)} and
+   * {@link OptionsFactory#printHelp(PrintStream, Class)} variant. Prints to the specified {@link
    * PrintStream}, and exits if requested.
    *
    * <p>Visible for testing. {@code printStream} and {@code exit} used for testing.
@@ -508,8 +503,8 @@ public class OptionsFactory {
    * <ul>
    *   <li>Any property with the same name must have the same return type for all derived interfaces
    *       of {@link Options}.
-   *   <li>Every bean property of any interface derived from {@link Options} must have a
-   *       getter and setter method.
+   *   <li>Every bean property of any interface derived from {@link Options} must have a getter and
+   *       setter method.
    *   <li>Every method must conform to being a getter or setter for a JavaBean.
    *   <li>The derived interface of {@link Options} must be composable with every interface
    *       registered with this factory.
@@ -540,16 +535,15 @@ public class OptionsFactory {
   }
 
   /**
-   * Outputs the set of registered options with the OptionsFactory with a description for
-   * each one if available to the output stream. This output is pretty printed and meant to be human
+   * Outputs the set of registered options with the OptionsFactory with a description for each one
+   * if available to the output stream. This output is pretty printed and meant to be human
    * readable. This method will attempt to format its output to be compatible with a terminal
    * window.
    */
   public static void printHelp(PrintStream out) {
     checkNotNull(out);
     out.println("The set of registered options are:");
-    Set<Class<? extends Options>> sortedOptions =
-        new TreeSet<>(ClassNameComparator.INSTANCE);
+    Set<Class<? extends Options>> sortedOptions = new TreeSet<>(ClassNameComparator.INSTANCE);
     sortedOptions.addAll(CACHE.get().registeredOptions);
     for (Class<? extends Options> kls : sortedOptions) {
       out.format("  %s%n", kls.getName());
@@ -561,8 +555,8 @@ public class OptionsFactory {
   }
 
   /**
-   * Outputs the set of options available to be set for the passed in {@link Options}
-   * interface. The output is in a human readable format. The format is:
+   * Outputs the set of options available to be set for the passed in {@link Options} interface. The
+   * output is in a human readable format. The format is:
    *
    * <pre>
    * OptionGroup:
@@ -731,8 +725,7 @@ public class OptionsFactory {
    * <p>TODO: Swap back to using Introspector once the proxy class issue with AppEngine is resolved.
    */
   private static List<PropertyDescriptor> getPropertyDescriptors(
-      Set<Method> methods, Class<? extends Options> beanClass)
-      throws IntrospectionException {
+      Set<Method> methods, Class<? extends Options> beanClass) throws IntrospectionException {
     SortedMap<String, Method> propertyNamesToGetters = new TreeMap<>();
     for (Map.Entry<String, Method> entry :
         OptionsReflector.getPropertyNamesToGetters(methods).entries()) {
@@ -840,8 +833,8 @@ public class OptionsFactory {
    * <ul>
    *   <li>Any method with the same name must have the same return type for all derived interfaces
    *       of {@link Options}.
-   *   <li>Every bean property of any interface derived from {@link Options} must have a
-   *       getter and setter method.
+   *   <li>Every bean property of any interface derived from {@link Options} must have a getter and
+   *       setter method.
    *   <li>Every method must conform to being a getter or setter for a JavaBean.
    *   <li>Only getters may be annotated with {@link JsonIgnore @JsonIgnore}.
    *   <li>If any getter is annotated with {@link JsonIgnore @JsonIgnore}, then all getters for this
@@ -849,8 +842,7 @@ public class OptionsFactory {
    * </ul>
    *
    * @param iface The interface to validate.
-   * @param validatedOptionsInterfaces The set of validated options interfaces to
-   *     validate against.
+   * @param validatedOptionsInterfaces The set of validated options interfaces to validate against.
    * @param klass The proxy class representing the interface.
    * @return A list of {@link PropertyDescriptor}s representing all valid bean properties of {@code
    *     iface}.
@@ -1168,8 +1160,7 @@ public class OptionsFactory {
     }
   }
 
-  private static void throwNonOptions(
-      Class<?> klass, Set<Class<?>> nonOptionsClasses) {
+  private static void throwNonOptions(Class<?> klass, Set<Class<?>> nonOptionsClasses) {
     StringBuilder errorBuilder =
         new StringBuilder(
             String.format(
@@ -1676,8 +1667,7 @@ public class OptionsFactory {
     private final Map<String, Class<? extends PipelineRunner<?>>> supportedPipelineRunners;
 
     /** The set of options that have been registered and visible to the user. */
-    private final Set<Class<? extends Options>> registeredOptions =
-        Sets.newConcurrentHashSet();
+    private final Set<Class<? extends Options>> registeredOptions = Sets.newConcurrentHashSet();
 
     /** A cache storing a mapping from a given interface to its registration record. */
     private final Map<Class<? extends Options>, Registration<?>> interfaceCache =
@@ -1757,23 +1747,23 @@ public class OptionsFactory {
      * Validates that the interface conforms to the following:
      *
      * <ul>
-     *   <li>Every inherited interface of {@code iface} must extend Options except for
-     *       Options itself.
+     *   <li>Every inherited interface of {@code iface} must extend Options except for Options
+     *       itself.
      *   <li>Any property with the same name must have the same return type for all derived
      *       interfaces of {@link Options}.
-     *   <li>Every bean property of any interface derived from {@link Options} must have a
-     *       getter and setter method.
+     *   <li>Every bean property of any interface derived from {@link Options} must have a getter
+     *       and setter method.
      *   <li>Every method must conform to being a getter or setter for a JavaBean.
-     *   <li>The derived interface of {@link Options} must be composable with every
-     *       interface part of allOptionsClasses.
+     *   <li>The derived interface of {@link Options} must be composable with every interface part
+     *       of allOptionsClasses.
      *   <li>Only getters may be annotated with {@link JsonIgnore @JsonIgnore}.
      *   <li>If any getter is annotated with {@link JsonIgnore @JsonIgnore}, then all getters for
      *       this property must be annotated with {@link JsonIgnore @JsonIgnore}.
      * </ul>
      *
      * @param iface The interface to validate.
-     * @param validatedOptionsInterfaces The set of validated options interfaces to
-     *     validate against.
+     * @param validatedOptionsInterfaces The set of validated options interfaces to validate
+     *     against.
      * @return A registration record containing the proxy class and bean info for iface.
      */
     synchronized <T extends Options> Registration<T> validateWellFormed(
@@ -1797,8 +1787,7 @@ public class OptionsFactory {
           List<PropertyDescriptor> propertyDescriptors =
               validateClass(iface, validatedOptionsInterfaces, allProxyClass);
           combinedCache.put(
-              combinedOptionsInterfaces,
-              new Registration<>(allProxyClass, propertyDescriptors));
+              combinedOptionsInterfaces, new Registration<>(allProxyClass, propertyDescriptors));
         } catch (IntrospectionException e) {
           throw new RuntimeException(e);
         }
@@ -1823,8 +1812,7 @@ public class OptionsFactory {
       return result;
     }
 
-    List<PropertyDescriptor> getPropertyDescriptors(
-        Set<Class<? extends Options>> interfaces) {
+    List<PropertyDescriptor> getPropertyDescriptors(Set<Class<? extends Options>> interfaces) {
       return combinedCache.get(interfaces).getPropertyDescriptors();
     }
   }

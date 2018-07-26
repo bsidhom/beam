@@ -33,8 +33,8 @@ import org.apache.beam.sdk.util.common.ReflectHelpers;
 /** Validates that the {@link Options} conforms to all the {@link Validation} criteria. */
 public class OptionsValidator {
   /**
-   * Validates that the passed {@link Options} conforms to all the validation criteria from
-   * the passed in interface.
+   * Validates that the passed {@link Options} conforms to all the validation criteria from the
+   * passed in interface.
    *
    * <p>Note that the interface requested must conform to the validation criteria specified on
    * {@link Options#as(Class)}.
@@ -48,8 +48,8 @@ public class OptionsValidator {
   }
 
   /**
-   * Validates that the passed {@link Options} from command line interface (CLI) conforms to
-   * all the validation criteria from the passed in interface.
+   * Validates that the passed {@link Options} from command line interface (CLI) conforms to all the
+   * validation criteria from the passed in interface.
    *
    * <p>Note that the interface requested must conform to the validation criteria specified on
    * {@link Options#as(Class)}.
@@ -62,8 +62,7 @@ public class OptionsValidator {
     return validate(klass, options, true);
   }
 
-  private static <T extends Options> T validate(
-      Class<T> klass, Options options, boolean isCli) {
+  private static <T extends Options> T validate(Class<T> klass, Options options, boolean isCli) {
     checkNotNull(klass);
     checkNotNull(options);
     checkArgument(Proxy.isProxyClass(options.getClass()));
@@ -76,8 +75,7 @@ public class OptionsValidator {
         (ProxyInvocationHandler) Proxy.getInvocationHandler(asClassOptions);
 
     SortedSetMultimap<String, Method> requiredGroups =
-        TreeMultimap.create(
-            Ordering.natural(), OptionsFactory.MethodNameComparator.INSTANCE);
+        TreeMultimap.create(Ordering.natural(), OptionsFactory.MethodNameComparator.INSTANCE);
     for (Method method : ReflectHelpers.getClosureOfMethodsOnInterface(klass)) {
       Required requiredAnnotation = method.getAnnotation(Validation.Required.class);
       if (requiredAnnotation != null) {

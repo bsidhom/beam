@@ -21,9 +21,9 @@ import com.google.auto.service.AutoService;
 import java.util.ServiceLoader;
 
 /**
- * {@link Options} creators have the ability to automatically have their {@link
- * Options} registered with this SDK by creating a {@link ServiceLoader} entry and a
- * concrete implementation of this interface.
+ * {@link Options} creators have the ability to automatically have their {@link Options} registered
+ * with this SDK by creating a {@link ServiceLoader} entry and a concrete implementation of this
+ * interface.
  *
  * <p>Note that automatic registration of any {@link Options} requires users conform to the
  * limitations discussed on {@link OptionsFactory#register(Class)}.

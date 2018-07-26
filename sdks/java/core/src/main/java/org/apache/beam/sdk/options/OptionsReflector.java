@@ -31,8 +31,8 @@ class OptionsReflector {
   private OptionsReflector() {}
 
   /**
-   * Retrieve metadata for the full set of options visible within the type hierarchy of a
-   * single {@link Options} interface.
+   * Retrieve metadata for the full set of options visible within the type hierarchy of a single
+   * {@link Options} interface.
    *
    * @see OptionsReflector#getOptionSpecs(Iterable)
    */
@@ -64,8 +64,8 @@ class OptionsReflector {
   }
 
   /**
-   * Retrieve metadata for the full set of options visible within the type hierarchy
-   * closure of the set of input interfaces. An option is "visible" if:
+   * Retrieve metadata for the full set of options visible within the type hierarchy closure of the
+   * set of input interfaces. An option is "visible" if:
    *
    * <ul>
    *   <li>The option is defined within the interface hierarchy closure of the input {@link
@@ -73,8 +73,7 @@ class OptionsReflector {
    *   <li>The defining interface is not marked {@link Hidden}.
    * </ul>
    */
-  static Set<OptionSpec> getOptionSpecs(
-      Iterable<Class<? extends Options>> optionsInterfaces) {
+  static Set<OptionSpec> getOptionSpecs(Iterable<Class<? extends Options>> optionsInterfaces) {
     ImmutableSet.Builder<OptionSpec> setBuilder = ImmutableSet.builder();
     for (Class<? extends Options> optionsInterface : optionsInterfaces) {
       setBuilder.addAll(getOptionSpecs(optionsInterface));
@@ -84,8 +83,8 @@ class OptionsReflector {
   }
 
   /**
-   * Extract options and their respective getter methods from a series of {@link Method
-   * methods}. A single option may appear in many methods.
+   * Extract options and their respective getter methods from a series of {@link Method methods}. A
+   * single option may appear in many methods.
    *
    * @return A mapping of option name to the input methods which declare it.
    */

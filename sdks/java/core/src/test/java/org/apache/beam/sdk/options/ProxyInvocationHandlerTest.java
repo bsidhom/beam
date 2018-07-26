@@ -20,7 +20,6 @@ package org.apache.beam.sdk.options;
 import static org.apache.beam.sdk.transforms.display.DisplayDataMatchers.hasDisplayItem;
 import static org.apache.beam.sdk.transforms.display.DisplayDataMatchers.hasKey;
 import static org.apache.beam.sdk.transforms.display.DisplayDataMatchers.hasNamespace;
-import static org.apache.beam.sdk.transforms.display.DisplayDataMatchers.hasType;
 import static org.apache.beam.sdk.transforms.display.DisplayDataMatchers.hasValue;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.hasItem;
@@ -572,8 +571,7 @@ public class ProxyInvocationHandlerTest {
     // properties because the intermediate instance of Options never
     // saw their interface.
     SimpleTypes options2 =
-        serializeDeserialize(
-            SimpleTypes.class, serializeDeserialize(Options.class, options));
+        serializeDeserialize(SimpleTypes.class, serializeDeserialize(Options.class, options));
     assertEquals(5, options2.getInteger());
     assertEquals("TestValue", options2.getString());
   }
@@ -880,8 +878,7 @@ public class ProxyInvocationHandlerTest {
 
     p.apply(Create.of(1, 2, 3));
 
-    expectedException.expectMessage(
-        ProxyInvocationHandler.OptionsDisplayData.class.getName());
+    expectedException.expectMessage(ProxyInvocationHandler.OptionsDisplayData.class.getName());
     expectedException.expectMessage("oh noes!!");
     p.run();
   }

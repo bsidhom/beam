@@ -19,9 +19,9 @@ package org.apache.beam.sdk.options;
 
 /**
  * An interface used with the {@link Default.InstanceFactory} annotation to specify the class that
- * will be an instance factory to produce default values for a given getter on {@link
- * Options}. When a property on a {@link Options} is fetched, and is currently
- * unset, the default value factory will be instantiated and invoked.
+ * will be an instance factory to produce default values for a given getter on {@link Options}. When
+ * a property on a {@link Options} is fetched, and is currently unset, the default value factory
+ * will be instantiated and invoked.
  *
  * <p>Care must be taken to not produce an infinite loop when accessing other fields on the {@link
  * Options} object.

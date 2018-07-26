@@ -24,7 +24,6 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.google.auto.service.AutoService;
 import com.google.common.base.MoreObjects;
 import java.lang.reflect.Proxy;
-import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.concurrent.ThreadLocalRandom;
 import javax.annotation.concurrent.ThreadSafe;
@@ -235,6 +234,7 @@ public interface PipelineOptions extends Options, HasDisplayData {
           + "support updating of pipelines.")
   @Default.Enum("WARNING")
   CheckEnabled getStableUniqueNames();
+
   void setStableUniqueNames(CheckEnabled enabled);
 
   /**

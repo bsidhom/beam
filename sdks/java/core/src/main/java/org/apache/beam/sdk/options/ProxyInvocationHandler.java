@@ -290,8 +290,7 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
      */
     @Override
     public void populateDisplayData(DisplayData.Builder builder) {
-      Set<OptionSpec> optionSpecs =
-          OptionsReflector.getOptionSpecs(knownInterfaces);
+      Set<OptionSpec> optionSpecs = OptionsReflector.getOptionSpecs(knownInterfaces);
 
       Multimap<String, OptionSpec> optionsMap = buildOptionNameToSpecMap(optionSpecs);
 
@@ -356,10 +355,7 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
     /** The resolved display data type. */
     abstract DisplayData.Type getType();
 
-    /**
-     * Infer the value and {@link DisplayData.Type type} for the given {@link Options}
-     * value.
-     */
+    /** Infer the value and {@link DisplayData.Type type} for the given {@link Options} value. */
     static DisplayDataValue resolve(@Nullable Object value) {
       DisplayData.Type type = DisplayData.inferType(value);
 
@@ -391,22 +387,21 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
   }
 
   /**
-   * Marker interface used when the original {@link Options} interface is not known at
-   * runtime. This can occur if {@link Options} are deserialized from JSON.
+   * Marker interface used when the original {@link Options} interface is not known at runtime. This
+   * can occur if {@link Options} are deserialized from JSON.
    *
-   * <p>Pipeline authors can ensure {@link Options} type information is available at runtime
-   * by registering their {@link Options options} interfaces. See the "Registration" section
-   * of {@link Options} documentation.
+   * <p>Pipeline authors can ensure {@link Options} type information is available at runtime by
+   * registering their {@link Options options} interfaces. See the "Registration" section of {@link
+   * Options} documentation.
    */
   interface UnknownOptions extends Options {}
 
   /**
-   * Construct a mapping from an option name to its {@link Options} interface(s)
-   * declarations. An option may be declared in multiple interfaces. If it is overridden in a type
-   * hierarchy, only the overriding interface will be included.
+   * Construct a mapping from an option name to its {@link Options} interface(s) declarations. An
+   * option may be declared in multiple interfaces. If it is overridden in a type hierarchy, only
+   * the overriding interface will be included.
    */
-  private Multimap<String, OptionSpec> buildOptionNameToSpecMap(
-      Set<OptionSpec> props) {
+  private Multimap<String, OptionSpec> buildOptionNameToSpecMap(Set<OptionSpec> props) {
 
     Multimap<String, OptionSpec> optionsMap = HashMultimap.create();
     for (OptionSpec prop : props) {
@@ -491,9 +486,7 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
   private Object getValueFromJson(String propertyName, Method method) {
     try {
       JavaType type =
-          OptionsFactory.MAPPER
-              .getTypeFactory()
-              .constructType(method.getGenericReturnType());
+          OptionsFactory.MAPPER.getTypeFactory().constructType(method.getGenericReturnType());
       JsonNode jsonNode = jsonOptions.get(propertyName);
       return OptionsFactory.MAPPER.readValue(jsonNode.toString(), type);
     } catch (IOException e) {
@@ -662,8 +655,7 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
         DisplayData displayData = DisplayData.from(value);
         for (DisplayData.Item item : displayData.items()) {
           @SuppressWarnings("unchecked")
-          Map<String, Object> serializedItem =
-              OptionsFactory.MAPPER.convertValue(item, Map.class);
+          Map<String, Object> serializedItem = OptionsFactory.MAPPER.convertValue(item, Map.class);
           serializedDisplayData.add(serializedItem);
         }
 
@@ -753,8 +745,7 @@ class ProxyInvocationHandler implements InvocationHandler, Serializable {
         }
       }
 
-      Options options =
-          new ProxyInvocationHandler(Maps.newHashMap(), fields).as(Options.class);
+      Options options = new ProxyInvocationHandler(Maps.newHashMap(), fields).as(Options.class);
       ValueProvider.RuntimeValueProvider.setRuntimeOptions(options);
       return options;
     }

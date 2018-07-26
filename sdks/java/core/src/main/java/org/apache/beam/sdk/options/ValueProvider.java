@@ -185,10 +185,7 @@ public interface ValueProvider<T> extends Serializable {
      * value.
      */
     RuntimeValueProvider(
-        String methodName,
-        String propertyName,
-        Class<? extends Options> klass,
-        Long optionsId) {
+        String methodName, String propertyName, Class<? extends Options> klass, Long optionsId) {
       this.methodName = methodName;
       this.propertyName = propertyName;
       this.klass = klass;
