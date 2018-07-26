@@ -22,6 +22,7 @@ import javax.annotation.Nullable;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.options.Default;
 import org.apache.beam.sdk.options.DefaultValueFactory;
+import org.apache.beam.sdk.options.Options;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
@@ -58,7 +59,7 @@ public interface TestPipelineOptions extends PipelineOptions {
   class AlwaysPassMatcherFactory
       implements DefaultValueFactory<SerializableMatcher<PipelineResult>> {
     @Override
-    public SerializableMatcher<PipelineResult> create(PipelineOptions options) {
+    public SerializableMatcher<PipelineResult> create(Options options) {
       return new AlwaysPassMatcher();
     }
   }

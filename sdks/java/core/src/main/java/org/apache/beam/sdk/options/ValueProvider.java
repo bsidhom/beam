@@ -172,9 +172,9 @@ public interface ValueProvider<T> extends Serializable {
    * the value of {@code optionsMap}.
    */
   class RuntimeValueProvider<T> implements ValueProvider<T>, Serializable {
-    private static ConcurrentHashMap<Long, PipelineOptions> optionsMap = new ConcurrentHashMap<>();
+    private static ConcurrentHashMap<Long, Options> optionsMap = new ConcurrentHashMap<>();
 
-    private final Class<? extends PipelineOptions> klass;
+    private final Class<? extends Options> klass;
     private final String methodName;
     private final String propertyName;
     @Nullable private final T defaultValue;
@@ -187,7 +187,7 @@ public interface ValueProvider<T> extends Serializable {
     RuntimeValueProvider(
         String methodName,
         String propertyName,
-        Class<? extends PipelineOptions> klass,
+        Class<? extends Options> klass,
         Long optionsId) {
       this.methodName = methodName;
       this.propertyName = propertyName;
@@ -203,7 +203,7 @@ public interface ValueProvider<T> extends Serializable {
     RuntimeValueProvider(
         String methodName,
         String propertyName,
-        Class<? extends PipelineOptions> klass,
+        Class<? extends Options> klass,
         T defaultValue,
         Long optionsId) {
       this.methodName = methodName;
@@ -215,22 +215,22 @@ public interface ValueProvider<T> extends Serializable {
 
     /**
      * Once set, all {@code RuntimeValueProviders} will return {@code true} from {@code
-     * isAccessible()}. By default, the value is set when deserializing {@link PipelineOptions}.
+     * isAccessible()}. By default, the value is set when deserializing {@link Options}.
      */
-    static void setRuntimeOptions(PipelineOptions runtimeOptions) {
+    static void setRuntimeOptions(Options runtimeOptions) {
       optionsMap.put(runtimeOptions.getOptionsId(), runtimeOptions);
     }
 
     @Override
     public T get() {
-      PipelineOptions options = optionsMap.get(optionsId);
+      Options options = optionsMap.get(optionsId);
       if (options == null) {
         throw new IllegalStateException(
             "Value only available at runtime, but accessed from a non-runtime context: " + this);
       }
       try {
         Method method = klass.getMethod(methodName);
-        PipelineOptions methodOptions = options.as(klass);
+        Options methodOptions = options.as(klass);
         InvocationHandler handler = Proxy.getInvocationHandler(methodOptions);
         ValueProvider<T> result = (ValueProvider<T>) handler.invoke(methodOptions, method, null);
         // Two cases: If we have deserialized a new value from JSON, it will
