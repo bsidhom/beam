@@ -25,11 +25,12 @@ import com.google.common.collect.ImmutableList;
  * A {@link PipelineOptionsRegistrar} containing the {@link PipelineOptions} subclasses available by
  * default.
  */
-@AutoService(PipelineOptionsRegistrar.class)
-public class DefaultPipelineOptionsRegistrar implements PipelineOptionsRegistrar {
+@AutoService(OptionsRegistrar.class)
+public class DefaultOptionsRegistrar implements OptionsRegistrar {
   @Override
-  public Iterable<Class<? extends PipelineOptions>> getPipelineOptions() {
-    return ImmutableList.<Class<? extends PipelineOptions>>builder()
+  public Iterable<Class<? extends Options>> getOptions() {
+    return ImmutableList.<Class<? extends Options>>builder()
+        .add(Options.class)
         .add(PipelineOptions.class)
         .add(ApplicationNameOptions.class)
         .add(StreamingOptions.class)
