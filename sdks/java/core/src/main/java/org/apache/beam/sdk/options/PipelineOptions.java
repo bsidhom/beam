@@ -33,7 +33,6 @@ import org.apache.beam.sdk.metrics.MetricsSink;
 import org.apache.beam.sdk.options.ProxyInvocationHandler.Deserializer;
 import org.apache.beam.sdk.options.ProxyInvocationHandler.Serializer;
 import org.apache.beam.sdk.transforms.DoFn;
-import org.apache.beam.sdk.transforms.display.HasDisplayData;
 import org.apache.beam.sdk.util.ReleaseInfo;
 import org.apache.beam.sdk.util.common.ReflectHelpers;
 import org.joda.time.DateTimeUtils;
@@ -201,7 +200,7 @@ import org.joda.time.format.DateTimeFormatter;
 @JsonSerialize(using = Serializer.class)
 @JsonDeserialize(using = Deserializer.class)
 @ThreadSafe
-public interface PipelineOptions extends Options, HasDisplayData {
+public interface PipelineOptions extends Options {
 
   /**
    * The pipeline runner that will be used to execute the pipeline. For registered runners, the
